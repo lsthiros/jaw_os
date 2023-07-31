@@ -9,6 +9,8 @@ need to go to arm.com's website and download gcc-arm for aarch64-none-elf.
 
 For the time being, I got it from [here](https://developer.arm.com/downloads/-/gnu-a)
 
+And the qemu target is described [here](https://qemu.readthedocs.io/en/latest/system/arm/virt.html)
+
 ## Bootloader
 I'm too stupid to write a bootloader so I'm using u-boot. First I gotta run
 ```bash
