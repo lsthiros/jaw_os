@@ -1,5 +1,4 @@
-# CPU=cortex-m4
-CPU=arm926ej-s
+CPU=cortex-a53
 
 # If environment variable GCC_PATH is not set, use default path
 ifeq ($(GCC_PATH),)
