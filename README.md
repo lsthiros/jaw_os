@@ -11,6 +11,14 @@ For the time being, I got it from [here](https://developer.arm.com/downloads/-/g
 
 And the qemu target is described [here](https://qemu.readthedocs.io/en/latest/system/arm/virt.html)
 
+### Rust Target
+Rust, specifically, will be told to use this target: `aarch64-unknown-none-softfloat`
+That means, I may have to run:
+```bash
+rustup target add aarch64-unknown-none-softfloat
+```
+in order to get it building correctly
+
 ## Bootloader
 I'm too stupid to write a bootloader so I'm using u-boot. First I gotta run
 ```bash

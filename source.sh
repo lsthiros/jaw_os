@@ -8,3 +8,6 @@ if [[ ! ":$PATH:" == *":$GCC_PATH:"* ]]; then
 else
     echo "arm gcc already in PATH"
 fi
+
+# GCC_PATH will be used as a matching string in a regex. Escape every character that has a special meaning in regex
+GCC_PATH=$(echo $GCC_PATH | sed 's/\./\\\./g' | sed 's/\//\\\//g')
