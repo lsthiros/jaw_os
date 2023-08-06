@@ -2,3 +2,5 @@ test.o
 test.elf
 startup.o
 test.bin
+
+tools/
