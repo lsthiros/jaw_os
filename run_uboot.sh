@@ -1,4 +1,4 @@
-#! /usr/bin/env zsh
+#! /usr/bin/env sh
 
 qemu-system-aarch64 \
   -machine virt \
