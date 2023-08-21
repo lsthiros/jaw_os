@@ -19,6 +19,13 @@ rustup target add aarch64-unknown-none-softfloat
 ```
 in order to get it building correctly
 
+I am using [this website](https://lowenware.com/blog/aarch64-bare-metal-program-in-rust/)
+as a guide. It says to use this command to build
+
+```bash
+cargo xbuild --target=aarch64-unknown-none-softfloat.json --release
+```
+
 ## Bootloader
 I'm too stupid to write a bootloader so I'm using u-boot. First I gotta run
 ```bash
