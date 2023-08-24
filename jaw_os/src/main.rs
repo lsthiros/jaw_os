@@ -1,11 +1,13 @@
 #![no_std]
 #![no_main]
+mod gic;
 
-use core::panic::PanicInfo;
-use core::arch::global_asm;
 use core::arch::asm;
+use core::arch::global_asm;
 use core::mem::size_of;
+use core::panic::PanicInfo;
 use core::ptr;
+use gic::Gic;
 
 global_asm!(include_str!("start.s"));
 
@@ -23,7 +25,14 @@ fn putc(c: u8) {
 
 const HEX: &[u8] = b"0123456789abcdef";
 // print_hex<T> is a generic function that prints the hexadecimal representation of any integer type.
-fn print_hex<T: Into<u64> + core::ops::Shl<i32, Output = T> + core::ops::Shr<i32, Output = T> + core::marker::Copy>(mut val: T) {
+fn print_hex<
+    T: Into<u64>
+        + core::ops::Shl<i32, Output = T>
+        + core::ops::Shr<i32, Output = T>
+        + core::marker::Copy,
+>(
+    mut val: T,
+) {
     let nibble_len: usize = size_of::<T>() * 2;
     let bit_len: usize = nibble_len * 4;
     let mut nibble_count: usize = nibble_len;
@@ -38,7 +47,6 @@ fn print_hex<T: Into<u64> + core::ops::Shl<i32, Output = T> + core::ops::Shr<i32
     }
 }
 
-
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
     const VAL: u64 = 0x1234_5678_9abc_def0;
@@ -49,6 +57,11 @@ pub extern "C" fn _rust_start() -> ! {
 
     let freq_val: u64;
     let tick_val: u64;
+    let gic = Gic{
+        gicd_ctlr: 0x0800_0000 as *mut u32,
+        gicc_ctlr: 0x0800_1000 as *mut u32,
+    };
+    gic.init_gic();
 
     unsafe {
         asm!(
