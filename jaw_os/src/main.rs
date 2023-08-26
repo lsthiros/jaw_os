@@ -57,10 +57,7 @@ pub extern "C" fn _rust_start() -> ! {
 
     let freq_val: u64;
     let tick_val: u64;
-    let gic = Gic{
-        gicd_ctlr: 0x0800_0000 as *mut u32,
-        gicc_ctlr: 0x0800_1000 as *mut u32,
-    };
+    let gic = Gic::new(0x0800_0000 as *mut u32, 0x0800_1000 as *mut u32);
     gic.init_gic();
 
     unsafe {
