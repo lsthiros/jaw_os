@@ -23,6 +23,12 @@ fn putc(c: u8) {
     }
 }
 
+fn print_str(s: &[u8]) {
+    for byte in s {
+        putc(*byte);
+    }
+}
+
 const HEX: &[u8] = b"0123456789abcdef";
 // print_hex<T> is a generic function that prints the hexadecimal representation of any integer type.
 fn print_hex<
@@ -50,10 +56,8 @@ fn print_hex<
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
     const VAL: u64 = 0x1234_5678_9abc_def0;
-    let out_str = b"IPv6 Only Network Stack\n";
-    for byte in out_str {
-        putc(*byte);
-    }
+    let out_str = b"jaw_os: The best operating system because it supports IPv6 Exclusivley (tm)\n";
+    print_str(out_str);
 
     let freq_val: u64;
     let tick_val: u64;
