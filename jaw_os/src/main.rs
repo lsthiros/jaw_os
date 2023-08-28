@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 #![no_std]
 #![no_main]
 mod gic;
@@ -8,6 +9,8 @@ use core::mem::size_of;
 use core::panic::PanicInfo;
 use core::ptr;
 use gic::Gic;
+
+mod kprint;
 
 global_asm!(include_str!("start.s"));
 
@@ -58,6 +61,7 @@ pub extern "C" fn _rust_start() -> ! {
     const VAL: u64 = 0x1234_5678_9abc_def0;
     let out_str = b"jaw_os: The best operating system because it supports IPv6 Exclusivley (tm)\n";
     print_str(out_str);
+    kprintf!("IPv6 Only Network Stack running version {}\n", 23);
 
     let freq_val: u64;
     let tick_val: u64;
