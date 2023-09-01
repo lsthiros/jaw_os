@@ -12,6 +12,7 @@ impl Gic {
     // Distributor Controller
     const GICD_CTLR_OFFSET: usize = 0x000;
     const GICD_ISENABLER_OFFSET: usize = 0x100;
+    const GICD_ICENABLER_OFFSET: usize = 0x180;
 
     // CPU Interface Controller
     const GICC_CTLR_OFFSET: usize = 0x000;
@@ -33,14 +34,26 @@ impl Gic {
         }
     }
 
-    const GICD_ISENABLER_SIZE: u32 = 32;
-    pub fn enable(&self, interrupt: u32) {
-        let interrupt_bit: u32 = 1 << (interrupt % Self::GICD_ISENABLER_SIZE);
-        let interrupt_offset: usize = (interrupt / Self::GICD_ISENABLER_SIZE) as usize;
+    pub fn set_enable(&self, interrupt: u32) {
+        const GICD_ISENABLER_SIZE: u32 = 32;
+        let interrupt_set_enable_bit: u32 = 1 << (interrupt % GICD_ISENABLER_SIZE);
+        let interrupt_set_enable_register: usize = (interrupt / GICD_ISENABLER_SIZE) as usize;
         unsafe {
             ptr::write_volatile(
-                self.gicd_ctlr.add(Self::GICD_ISENABLER_OFFSET + interrupt_offset),
-                interrupt_bit,
+                self.gicd_ctlr.add(Self::GICD_ISENABLER_OFFSET + interrupt_set_enable_register),
+                interrupt_set_enable_bit,
+            );
+        }
+    }
+
+    pub fn clear_enable(&self, interrupt: u32) {
+        const GICD_ICENABLER_SIZE: u32 = 32;
+        let interrupt_clear_enable_bit: u32 = 1 << (interrupt % GICD_ICENABLER_SIZE);
+        let interrupt_clear_enable_register: usize = (interrupt / GICD_ICENABLER_SIZE) as usize;
+        unsafe {
+            ptr::write_volatile(
+                self.gicd_ctlr.add(Self::GICD_ICENABLER_OFFSET + interrupt_clear_enable_register),
+                interrupt_clear_enable_bit
             );
         }
     }
