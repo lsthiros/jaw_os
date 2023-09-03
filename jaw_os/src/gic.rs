@@ -81,5 +81,59 @@ impl Gic {
             );
         };
     }
+
+    pub fn set_target(&self, interrupt: u32, target: u8) {
+        const GICD_ITARGETSR_OFFSET: usize = 0x800;
+        const GICD_ITARGETSR_SIZE: u32 = 4;
+        const TARGET_BIT_WIDTH: u32 = 8;
+
+        if target > 7 {
+            panic!("Invalid target: {}", target);
+        }
+
+        let interrupt_target_register_offset: usize = (interrupt / GICD_ITARGETSR_SIZE) as usize;
+        let current_interrupt_target: u32 = unsafe {
+            ptr::read_volatile(
+                self.gicd_ctlr.add(GICD_ITARGETSR_OFFSET + interrupt_target_register_offset)
+            )
+        };
+
+        let interrupt_target_mask: u32 = (1 << (((interrupt % GICD_ITARGETSR_SIZE) * TARGET_BIT_WIDTH) + (target as u32)));
+        let new_interrupt_target: u32 = current_interrupt_target | interrupt_target_mask;
+        unsafe {
+            ptr::write_volatile(
+                self.gicd_ctlr.add(GICD_ITARGETSR_OFFSET + interrupt_target_register_offset),
+                new_interrupt_target
+            );
+        };
+    }
+
+    pub fn set_cfg(&self, interrupt: u32, cfg: u8) {
+        const GICD_ICFGR_OFFSET: usize = 0xC00;
+        const GICD_ICFGR_SIZE: u32 = 16;
+        const CFG_BIT_WIDTH: u32 = 2;
+
+        if cfg > 3 {
+            panic!("Invalid cfg: {}", cfg);
+        }
+
+        let interrupt_cfg_register_offset: usize = (interrupt / GICD_ICFGR_SIZE) as usize;
+        let current_interrupt_cfg: u32 = unsafe {
+            ptr::read_volatile(
+                self.gicd_ctlr.add(GICD_ICFGR_OFFSET + interrupt_cfg_register_offset)
+            )
+        };
+
+        let interrupt_cfg_mask: u32 = (cfg as u32) << ((interrupt % GICD_ICFGR_SIZE) * CFG_BIT_WIDTH);
+        let interrupt_cfg_field_mask: u32 = 3 << ((interrupt % GICD_ICFGR_SIZE) * CFG_BIT_WIDTH);
+        let new_interrupt_cfg: u32 = current_interrupt_cfg | interrupt_cfg_mask;
+        unsafe {
+            ptr::write_volatile(
+                self.gicd_ctlr.add(GICD_ICFGR_OFFSET + interrupt_cfg_register_offset),
+                new_interrupt_cfg
+            );
+        };
+    }
+
 }
 
