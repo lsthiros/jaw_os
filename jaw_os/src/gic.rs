@@ -66,13 +66,20 @@ impl Gic {
 
         let interrupt_priority_register_offset: usize = (interrupt / GICD_IPRIORITYR_SIZE) as usize;
         let interrupt_priority_bit_offset: u32 = (interrupt % GICD_IPRIORITYR_SIZE) * PRIORITY_BIT_WIDTH;
-        let inerrupt_priority_mask: u32 =  PRIORITY_FIELD_MASK << interrupt_priority_bit_offset;
+        let interrupt_priority_mask: u32 =  PRIORITY_FIELD_MASK << interrupt_priority_bit_offset;
+        let interrupt_priority_in_place: u32 = (priority as u32) << interrupt_priority_bit_offset;
         let current_interrupt_priority: u32 = unsafe {
             ptr::read_volatile(
                 self.gicd_ctlr.add(GICD_IPRIORITYR_OFFSET + interrupt_priority_register_offset)
             )
         };
-
+        let new_interrupt_priority: u32 = (current_interrupt_priority & !interrupt_priority_mask) | interrupt_priority_in_place;
+        unsafe {
+            ptr::write_volatile(
+                self.gicd_ctlr.add(GICD_IPRIORITYR_OFFSET + interrupt_priority_register_offset),
+                new_interrupt_priority
+            );
+        };
     }
 }
 
