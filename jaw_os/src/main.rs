@@ -13,6 +13,7 @@ use gic::Gic;
 mod kprint;
 
 global_asm!(include_str!("start.s"));
+global_asm!(include_str!("interrupt.s"));
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
@@ -25,7 +26,7 @@ pub extern "C" fn _rust_start() -> ! {
 
     let freq_val: u64;
     let tick_val: u64;
-    let gic = Gic::new(0x0800_0000 as *mut u32, 0x0800_1000 as *mut u32);
+    let gic = Gic::new(0x0800_0000 as *mut u32, 0x0801_0000 as *mut u32);
     gic.init_gic();
 
     unsafe {
