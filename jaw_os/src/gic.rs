@@ -57,5 +57,22 @@ impl Gic {
             );
         }
     }
+
+    pub fn set_priority(&self, interrupt: u32, priority: u8) {
+        const GICD_IPRIORITYR_OFFSET: usize = 0x400;
+        const GICD_IPRIORITYR_SIZE: u32 = 4;
+        const PRIORITY_BIT_WIDTH: u32 = 8;
+        const PRIORITY_FIELD_MASK: u32 = (1 << PRIORITY_BIT_WIDTH) - 1;
+
+        let interrupt_priority_register_offset: usize = (interrupt / GICD_IPRIORITYR_SIZE) as usize;
+        let interrupt_priority_bit_offset: u32 = (interrupt % GICD_IPRIORITYR_SIZE) * PRIORITY_BIT_WIDTH;
+        let inerrupt_priority_mask: u32 =  PRIORITY_FIELD_MASK << interrupt_priority_bit_offset;
+        let current_interrupt_priority: u32 = unsafe {
+            ptr::read_volatile(
+                self.gicd_ctlr.add(GICD_IPRIORITYR_OFFSET + interrupt_priority_register_offset)
+            )
+        };
+
+    }
 }
 
