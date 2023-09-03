@@ -12,6 +12,8 @@ For the time being, I got it from [here](https://developer.arm.com/downloads/-/g
 And the qemu target is described [here](https://qemu.readthedocs.io/en/latest/system/arm/virt.html)
 
 ### Rust Target
+This project uses Rust Nightly, exclusively, fuck you Gerrik.
+
 Rust, specifically, will be told to use this target: `aarch64-unknown-none-softfloat`
 That means, I may have to run:
 ```bash
