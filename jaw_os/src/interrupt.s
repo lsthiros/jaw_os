@@ -3,7 +3,7 @@
 .globl exception_vector_table
 exception_vector_table:
 
-.equ CONTEXT_SIZE, 256
+.equ CONTEXT_SIZE, 264
 
 // IRQ vector
 .org 0x0080
@@ -36,7 +36,7 @@ exception_vector_table:
     stp x0, x1, [sp, #0xF8]
 
     // Call the exception handler
-    bl exception_handler
+    bl timer_interrupt
 
     // Restore x30 (LR) from the stack
     ldr x30, [sp, #0xF0]
