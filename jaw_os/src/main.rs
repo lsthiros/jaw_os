@@ -5,9 +5,7 @@ mod gic;
 
 use core::arch::asm;
 use core::arch::global_asm;
-use core::mem::size_of;
 use core::panic::PanicInfo;
-use core::ptr;
 use gic::Gic;
 use gic::InterruptType;
 use gic::CpuId;
@@ -35,7 +33,7 @@ pub extern "C" fn _rust_start() -> ! {
 
 
     const TIMER_IRQ: u32 = 30;
-    let gic = Gic::new(0x0800_0000 as *mut u32, 0x0801_0000 as *mut u32);
+    let gic = Gic::new(0x0800_0000 as usize, 0x0801_0000 as usize);
     gic.init_gic();
     // Set the timer interrupt to be level sensitive with set_cfg
     gic.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
@@ -51,7 +49,6 @@ pub extern "C" fn _rust_start() -> ! {
             "mrs {0}, CNTFRQ_EL0",
             "msr CNTP_CTL_EL0, {0}",
             "msr CNTP_TVAL_EL0, {1}",
-            "msr daifclr, #2",
             out(reg) freq_val,
             in(reg) ctl_val,
         );
@@ -64,7 +61,7 @@ pub extern "C" fn _rust_start() -> ! {
 }
 
 #[no_mangle]
-pub fn timer_interrupt(_ctx: &ExceptionContext) {
+pub extern "C" fn _timer_interrupt(_ctx: &ExceptionContext) {
     kprintf!("Timer interrupt!\n");
     unsafe {
         asm!(
@@ -73,5 +70,5 @@ pub fn timer_interrupt(_ctx: &ExceptionContext) {
             out(reg) _
         )
     }
-
+    return;
 }

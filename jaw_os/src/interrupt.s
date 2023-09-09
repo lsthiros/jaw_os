@@ -36,7 +36,7 @@ exception_vector_table:
     stp x0, x1, [sp, #0xF8]
 
     // Call the exception handler
-    bl timer_interrupt
+    bl _timer_interrupt
 
     // Restore x30 (LR) from the stack
     ldr x30, [sp, #0xF0]
