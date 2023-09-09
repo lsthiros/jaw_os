@@ -1,14 +1,11 @@
-.section .text.exceptions
-
-.globl exception_vector_table
-exception_vector_table:
+.globl _exception_vector_table
+.section ".text.exceptions"
 
 .equ CONTEXT_SIZE, 264
-
+_exception_vector_table:
 // IRQ vector
-.org 0x0080
+// .org 0x0080
     sub sp, sp, #CONTEXT_SIZE
-
     // Store x0 to x29 on the stack
     stp x0, x1, [sp, #0x00]
     stp x2, x3, [sp, #0x10]

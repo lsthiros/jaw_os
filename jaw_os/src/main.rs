@@ -13,7 +13,7 @@ use gic::CpuId;
 mod kprint;
 
 global_asm!(include_str!("start.s"));
-global_asm!(include_str!("interrupt.s"));
+// global_asm!(include_str!("interrupt.s"));
 
 #[repr(C)]
 pub struct ExceptionContext {
