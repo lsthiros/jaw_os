@@ -1,67 +1,58 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #![no_std]
 #![no_main]
+mod exception;
 mod gic;
 
 use core::arch::asm;
 use core::arch::global_asm;
 use core::panic::PanicInfo;
+use gic::CpuId;
 use gic::Gic;
 use gic::InterruptType;
-use gic::CpuId;
 
 mod kprint;
 
 global_asm!(include_str!("start.s"));
-global_asm!(include_str!("interrupt.s"));
-
-#[repr(C)]
-pub struct ExceptionContext {
-    regs: [u64; 31],
-    elr_el1: u64,
-    spsr_el1: u64,
-}
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
-pub fn init_exception_table() {
-    extern "C" {
-        fn _exception_vector_table();
-    }
-    let exception_vector_table_offset: u64 = _exception_vector_table as usize as u64;
-    unsafe {
-        asm!(
-            "msr VBAR_EL1, {0}",
-            in(reg) exception_vector_table_offset,
-        );
-    }
-}
-
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
     kprintf!("jaw_os: The best operating system because it supports IPv6 Exclusivley (tm)\n");
 
-
     const TIMER_IRQ: u32 = 30;
 
-    init_exception_table();
+    exception::init_exception_table();
+    let current_el: exception::ExceptionLevel = exception::get_current_el();
+    kprintf!("Current exception level: {:?}\n", current_el);
+
+    // Enable interrupts in DAIF
+    kprintf!("DAIFClr\n");
+    unsafe {
+        asm!("msr DAIFClr, 0x2",);
+    }
+
+    kprintf!("Group enable\n");
+    exception::configure_groups();
 
     let gic = Gic::new(0x0800_0000 as usize, 0x0801_0000 as usize);
     gic.init_gic();
     // Set the timer interrupt to be level sensitive with set_cfg
     gic.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
     gic.set_priority(TIMER_IRQ, 0);
-    gic.set_target(TIMER_IRQ, CpuId::Cpu1);
+    gic.set_target(TIMER_IRQ, CpuId::Cpu0);
     gic.clear_pending(TIMER_IRQ);
     gic.set_enable(TIMER_IRQ);
+    gic.set_group(TIMER_IRQ);
 
     let freq_val: u64;
     let ctl_val: u64 = 1;
     let next: u64;
-    let delta: u64 = 100_000;
+    let delta: u64 = 100_000_000;
     unsafe {
         asm!(
             "mrs {0}, CNTFRQ_EL0",
@@ -87,29 +78,28 @@ pub extern "C" fn _rust_start() -> ! {
             nop_cnt += 1;
         }
         let cntpct_val: u64;
+        let timer_ctl: u64;
+        let remaining: u64;
         unsafe {
             asm!(
                 "mrs {0}, CNTPCT_EL0",
+                "mrs {1}, CNTP_CTL_EL0",
+                "mrs {2}, CNTP_TVAL_EL0",
                 out(reg) cntpct_val,
+                out(reg) timer_ctl,
+                out(reg) remaining,
             );
         }
-        kprintf!("cntpct_val: {:#x}\n", cntpct_val);
+        kprintf!(
+            "cntpct_val: {:#x} ctl: {:#x} remain:{:#x}",
+            cntpct_val,
+            timer_ctl,
+            remaining
+        );
+        let pending: u64 = gic.get_pending(TIMER_IRQ) as u64;
+        kprintf!(" pending: {:#x}\n", pending);
+        if (pending != 0) {
+            loop {}
+        }
     }
-}
-
-#[no_mangle]
-pub extern "C" fn _timer_interrupt(_ctx: &ExceptionContext) {
-    kprintf!("Timer interrupt!\n");
-    let delta: u64 = 100_000;
-    let next: u64;
-    unsafe {
-        asm!(
-            "msr CNTP_TVAL_EL0, {0}",
-            "mrs {1}, CNTP_CVAL_EL0",
-            in(reg) delta,
-            out(reg) next,
-        )
-    }
-    kprintf!("next: {:#x}\n", next);
-    return;
 }
