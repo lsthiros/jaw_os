@@ -6,6 +6,7 @@ use core::arch::global_asm;
 use core::panic::PanicInfo;
 
 mod kprint;
+mod reg;
 
 global_asm!(include_str!("start.s"));
 
@@ -17,5 +18,6 @@ fn panic(_info: &PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
     kprintf!("IPv6 Only Network Stack running version {}\n", 23);
+    let el = reg::aarch64_mrs("CurrentEL");
     loop {}
 }
