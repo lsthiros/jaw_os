@@ -32,7 +32,6 @@ impl Gic {
 
     // CPU Interface Controller
     const GICC_CTLR_OFFSET: usize = 0x000;
-    const GICC_PMR_OFFSET: usize = 0x004;
 
     pub fn new(gicd_ctlr: usize, gicc_ctlr: usize) -> Self {
         Self {
@@ -44,8 +43,10 @@ impl Gic {
     pub fn init_gic(&self) {
         unsafe {
             ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, 1);
-            ptr::write_volatile((self.gicc_ctlr + Self::GICC_CTLR_OFFSET) as *mut u32, 1);
-            ptr::write_volatile((self.gicc_ctlr + Self::GICC_PMR_OFFSET) as *mut u32, 0xFF);
+        }
+        const PMR_MINIMUM_PRIORITY: u64 = 0xFF;
+        unsafe {
+            asm!("msr ICC_PMR_EL1, {}", in(reg) PMR_MINIMUM_PRIORITY);
         }
     }
 

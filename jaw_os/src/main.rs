@@ -26,28 +26,34 @@ pub extern "C" fn _rust_start() -> ! {
 
     const TIMER_IRQ: u32 = 30;
 
-    exception::init_exception_table();
-    let current_el: exception::ExceptionLevel = exception::get_current_el();
-    kprintf!("Current exception level: {:?}\n", current_el);
-
     // Enable interrupts in DAIF
     kprintf!("DAIFClr\n");
     unsafe {
         asm!("msr DAIFClr, 0x2",);
     }
 
+    exception::init_exception_table();
+    let current_el: exception::ExceptionLevel = exception::get_current_el();
+    kprintf!("Current exception level: {:?}\n", current_el);
+
     kprintf!("Group enable\n");
     exception::configure_groups();
 
     let gic = Gic::new(0x0800_0000 as usize, 0x0801_0000 as usize);
+    kprintf!("Init GIC\n");
     gic.init_gic();
+    kprintf!("done\n");
     // Set the timer interrupt to be level sensitive with set_cfg
+    kprintf!("Set cfg\n");
+
     gic.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
     gic.set_priority(TIMER_IRQ, 0);
     gic.set_target(TIMER_IRQ, CpuId::Cpu0);
     gic.clear_pending(TIMER_IRQ);
     gic.set_enable(TIMER_IRQ);
     gic.set_group(TIMER_IRQ);
+
+    kprintf!("Set timer\n");
 
     let freq_val: u64;
     let ctl_val: u64 = 1;

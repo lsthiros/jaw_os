@@ -35,26 +35,27 @@ pub fn init_exception_table() {
 
 pub fn configure_groups() {
     // Enable SRE bypass for EL1. If we don't do this, we'll get a synchronous exception when we try to write ICC_GRPEN1_EL1
-    let sre_bypass: u64 = 0b1;
-    // Enable group 1 interrupts for EL1
-    let group_enable: u64 = 0b1;
-    kprintf!("got here\n");
-    // print ICC_SRE_EL1 and ICC_IGRPEN1_EL1
-    let sre_el1: u64;
+    let sre_el1_contents: u64;
     unsafe {
         asm!(
             "mrs {0}, ICC_SRE_EL1",
-            out(reg) sre_el1,
+            out(reg) sre_el1_contents,
         );
     }
-    kprintf!("ICC_SRE_EL1: {:#x}\n", sre_el1);
-
+    const SRE_BYPASS: u64 = 0b1;
+    let sre_el1_desired: u64 = sre_el1_contents | SRE_BYPASS;
     unsafe {
         asm!(
             "msr ICC_SRE_EL1, {0}",
-            "msr ICC_IGRPEN1_EL1, {1}",
-            in(reg) sre_bypass,
-            in(reg) group_enable,
+            in(reg) sre_el1_desired,
+        );
+    }
+
+    const GROUP_ENABLE: u64 = 0b1;
+    unsafe {
+        asm!(
+            "msr ICC_IGRPEN1_EL1, {0}",
+            in(reg) GROUP_ENABLE,
         );
     }
 }
