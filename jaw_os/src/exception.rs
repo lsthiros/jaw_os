@@ -33,32 +33,6 @@ pub fn init_exception_table() {
     }
 }
 
-pub fn configure_groups() {
-    // Enable SRE bypass for EL1. If we don't do this, we'll get a synchronous exception when we try to write ICC_GRPEN1_EL1
-    let sre_el1_contents: u64;
-    unsafe {
-        asm!(
-            "mrs {0}, ICC_SRE_EL1",
-            out(reg) sre_el1_contents,
-        );
-    }
-    const SRE_BYPASS: u64 = 0b1;
-    let sre_el1_desired: u64 = sre_el1_contents | SRE_BYPASS;
-    unsafe {
-        asm!(
-            "msr ICC_SRE_EL1, {0}",
-            in(reg) sre_el1_desired,
-        );
-    }
-
-    const GROUP_ENABLE: u64 = 0b1;
-    unsafe {
-        asm!(
-            "msr ICC_IGRPEN1_EL1, {0}",
-            in(reg) GROUP_ENABLE,
-        );
-    }
-}
 
 #[no_mangle]
 pub extern "C" fn _timer_interrupt(_ctx: &ExceptionContext) {

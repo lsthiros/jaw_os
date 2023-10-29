@@ -17,8 +17,7 @@ fi
 qemu-system-aarch64 \
   -machine virt \
   -cpu cortex-a53 \
-  -machine gic-version=3 \
   -nographic \
-  -machine gic-version=3 \
+  -machine gic-version=3,secure=off \
   -kernel $KERNEL_DIR \
   ${QEMU_ARGS}
