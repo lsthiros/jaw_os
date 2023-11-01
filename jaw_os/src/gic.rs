@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 use core::arch::asm;
 use core::ptr;
 
@@ -27,12 +29,34 @@ pub enum CpuId {
     Cpu7 = 7,
 }
 
+fn write_register(base: usize, field_width: u32, entry: u32, value: u32) {
+    let entries_per_register: u32 = 32 / field_width;
+    let offset: usize = (entry / entries_per_register) as usize;
+    let bit_offset: u32 = (entry % entries_per_register) * field_width;
+    let field_mask: u32 = (1 << field_width) - 1;
+
+    let register: *mut u32 = (base + offset) as *mut u32;
+    let current_value: u32 = unsafe { ptr::read_volatile(register) };
+    let value_to_write: u32 = (current_value & !(field_mask << bit_offset)) | ((value & field_mask) << bit_offset);
+    unsafe {
+        ptr::write_volatile(register, value_to_write);
+    }
+}
+
+fn read_register(base: usize, field_width: u32, entry: u32) -> u32 {
+    let entries_per_register: u32 = 32 / field_width;
+    let offset: usize = (entry / entries_per_register) as usize;
+    let bit_offset: u32 = (entry % entries_per_register) * field_width;
+    let field_mask: u32 = (1 << field_width) - 1;
+
+    let register: *mut u32 = (base + offset) as *mut u32;
+    let current_value: u32 = unsafe { ptr::read_volatile(register) };
+    (current_value >> bit_offset) & field_mask
+}
+
 impl Gic {
     // Distributor Controller
     const GICD_CTLR_OFFSET: usize = 0x000;
-
-    // CPU Interface Controller
-    const GICC_CTLR_OFFSET: usize = 0x000;
 
     pub fn new(gicd_ctlr: usize, gicc_ctlr: usize, gicr_ctlr: usize) -> Self {
         Self {
@@ -52,10 +76,15 @@ impl Gic {
             ptr::read_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32)
         };
         kprintf!("ctlr_contents: {:#x}\n", ctlr_contents);
-        // Turn on Group 0 and Group 1 interrupts and disable affinity routing
-        ctlr_contents |= 0b1;
-        ctlr_contents |= 0b10;
-        ctlr_contents &= !(0b1 << 4);
+        // Turn on Group 0 and Group 1 interrupts
+        ctlr_contents |= 1 << 0;
+        ctlr_contents |= 1 << 1;
+
+        // Disable Security
+        ctlr_contents |= 1 << 6;
+
+        // Disable affinity routing
+        ctlr_contents &= !(1 << 4);
 
         unsafe {
             ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents | 0b11);
@@ -101,6 +130,7 @@ impl Gic {
         }
 
 
+        // Section 4.2.1: Mark PE as awake
         kprintf!("Marking system as awake\n");
         // Loop until ChildrenAsleep is 0
         const GICR_WAKER_CHILDREN_ASLEEP_BIT: u32 = 0b1 << 2;
@@ -122,7 +152,6 @@ impl Gic {
                 out(reg) icc_ctlr_el1_contents,
             );
         }
-        panic!("icc_ctlr_el1_contents: {:#x}\n", icc_ctlr_el1_contents);
 
         let bpr0: u64;
         unsafe {
@@ -133,88 +162,107 @@ impl Gic {
         }
         kprintf!("bpr0: {:#x}\n", bpr0);
 
-        const GROUP_ENABLE: u64 = 0b1;
-        unsafe {
-            asm!(
-                "msr ICC_IGRPEN1_EL1, {0}",
-                in(reg) GROUP_ENABLE,
-            );
-        }
-
-
         const PMR_MINIMUM_PRIORITY: u64 = 0xFF;
         unsafe {
             asm!("msr ICC_PMR_EL1, {0}", in(reg) PMR_MINIMUM_PRIORITY);
         }
-    }
 
-    pub fn set_group(&self, interrupt: u32) {
-        const GICD_IGROUPR_SIZE: u32 = 32;
-        const GICD_IGROUPR_OFFSET: usize = 0x080;
-        let interrupt_group_bit: u32 = 1 << (interrupt % GICD_IGROUPR_SIZE);
-        let interrupt_group_register: usize = (interrupt / GICD_IGROUPR_SIZE) as usize;
-        let gicd_igroupr: *mut u32 = (self.gicd_ctlr + GICD_IGROUPR_OFFSET) as *mut u32;
+        const GROUP_ENABLE: u64 = 0b1;
         unsafe {
-            ptr::write_volatile(
-                gicd_igroupr.add(interrupt_group_register),
-                interrupt_group_bit,
+            asm!(
+                "msr ICC_IGRPEN1_EL1, {0}",
+                "msr DAIFclr, 0x2",
+                in(reg) GROUP_ENABLE,
             );
         }
+    }
+
+    pub fn set_group(&self, interrupt: u32, group: bool) {
+        const GICD_IGROUPR_FIELD_SIZE: u32 = 1;
+        const GICD_IGROUPR_OFFSET: usize = 0x080;
+
+        write_register(
+            self.gicd_ctlr + GICD_IGROUPR_OFFSET,
+            GICD_IGROUPR_FIELD_SIZE,
+            interrupt,
+            group as u32,
+        );
     }
 
     pub fn set_enable(&self, interrupt: u32) {
-        const GICD_ISENABLER_SIZE: u32 = 32;
+        const GICD_ISENABLER_FIELD_SIZE: u32 = 1;
         const GICD_ISENABLER_OFFSET: usize = 0x100;
-        let gicd_isenabler: *mut u32 = (self.gicd_ctlr + GICD_ISENABLER_OFFSET) as *mut u32;
-
-        let interrupt_set_enable_bit: u32 = 1 << (interrupt % GICD_ISENABLER_SIZE);
-        let interrupt_set_enable_register: usize = (interrupt / GICD_ISENABLER_SIZE) as usize;
-        unsafe {
-            ptr::write_volatile(
-                gicd_isenabler.add(interrupt_set_enable_register),
-                interrupt_set_enable_bit,
-            );
-        }
+        write_register(self.gicd_ctlr + GICD_ISENABLER_OFFSET,
+            GICD_ISENABLER_FIELD_SIZE,
+            interrupt,
+            0b1);
     }
 
     pub fn clear_enable(&self, interrupt: u32) {
-        const GICD_ICENABLER_SIZE: u32 = 32;
+        const GICD_ICENABLER_FIELD_SIZE: u32 = 1;
         const GICD_ICENABLER_OFFSET: usize = 0x180;
-        let interrupt_clear_enable_bit: u32 = 1 << (interrupt % GICD_ICENABLER_SIZE);
-        let interrupt_clear_enable_register: usize = (interrupt / GICD_ICENABLER_SIZE) as usize;
-        let gicd_icenabler: *mut u32 = (self.gicd_ctlr + GICD_ICENABLER_OFFSET) as *mut u32;
-        unsafe {
-            ptr::write_volatile(
-                gicd_icenabler.add(interrupt_clear_enable_register),
-                interrupt_clear_enable_bit,
-            );
-        }
+        write_register(
+            self.gicd_ctlr + GICD_ICENABLER_OFFSET,
+            GICD_ICENABLER_FIELD_SIZE,
+            interrupt,
+            0b1,
+        );
+    }
+
+    pub fn set_redistributor_enable(&self, interrupt: u32) {
+        const GICR_ISENABLER_FIELD_SIZE: u32 = 1;
+        const GICR_ISENABLER_OFFSET: usize = 0x100;
+        write_register(
+            self.gicr_ctlr + GICR_ISENABLER_OFFSET,
+            GICR_ISENABLER_FIELD_SIZE,
+            interrupt,
+            0b1,
+        );
+    }
+
+    pub fn clear_redistributor_enable(&self, interrupt: u32) {
+        const GICR_ICENABLER_FIELD_SIZE: u32 = 1;
+        const GICR_ICENABLER_OFFSET: usize = 0x180;
+        write_register(
+            self.gicr_ctlr + GICR_ICENABLER_OFFSET,
+            GICR_ICENABLER_FIELD_SIZE,
+            interrupt,
+            0b1,
+        );
     }
 
     pub fn set_priority(&self, interrupt: u32, priority: u8) {
         const GICD_IPRIORITYR_OFFSET: usize = 0x400;
-        const GICD_IPRIORITYR_SIZE: u32 = 4;
-        const PRIORITY_BIT_WIDTH: u32 = 8;
-        const PRIORITY_FIELD_MASK: u32 = (1 << PRIORITY_BIT_WIDTH) - 1;
+        const GICD_IPRIORITYR_FIELD_SIZE: u32 = 8;
 
-        let interrupt_priority_register_offset: usize = (interrupt / GICD_IPRIORITYR_SIZE) as usize;
-        let gicd_ipriorityr: *mut u32 = (self.gicd_ctlr + GICD_IPRIORITYR_OFFSET) as *mut u32;
+        write_register(
+            self.gicd_ctlr + GICD_IPRIORITYR_OFFSET,
+            GICD_IPRIORITYR_FIELD_SIZE,
+            interrupt,
+            priority as u32,
+        );
+    }
 
-        let interrupt_priority_bit_offset: u32 =
-            (interrupt % GICD_IPRIORITYR_SIZE) * PRIORITY_BIT_WIDTH;
-        let interrupt_priority_mask: u32 = PRIORITY_FIELD_MASK << interrupt_priority_bit_offset;
-        let interrupt_priority_in_place: u32 = (priority as u32) << interrupt_priority_bit_offset;
+    pub fn set_redistributor_priority(&self, interrupt: u32, priority: u8) {
+        const GICR_IPRIORITYR_OFFSET: usize = 0x400;
+        const GICR_IPRIORITYR_FIELD_SIZE: u32 = 8;
 
-        let current_interrupt_priority: u32 =
-            unsafe { ptr::read_volatile(gicd_ipriorityr.add(interrupt_priority_register_offset)) };
-        let new_interrupt_priority: u32 =
-            (current_interrupt_priority & !interrupt_priority_mask) | interrupt_priority_in_place;
-        unsafe {
-            ptr::write_volatile(
-                gicd_ipriorityr.add(interrupt_priority_register_offset),
-                new_interrupt_priority,
-            );
-        };
+        write_register(
+            self.gicr_ctlr + GICR_IPRIORITYR_OFFSET,
+            GICR_IPRIORITYR_FIELD_SIZE,
+            interrupt,
+            priority as u32,
+        );
+    }
+
+    pub fn get_redistributor_priority(&self, interrupt: u32) -> u8 {
+        const GICR_IPRIORITYR_OFFSET: usize = 0x400;
+        const GICR_IPRIORITYR_FIELD_SIZE: u32 = 8;
+        read_register(
+            self.gicr_ctlr + GICR_IPRIORITYR_OFFSET,
+            GICR_IPRIORITYR_FIELD_SIZE,
+            interrupt,
+        ) as u8
     }
 
     pub fn set_target(&self, interrupt: u32, target: CpuId) {
@@ -245,49 +293,44 @@ impl Gic {
 
     pub fn set_cfg(&self, interrupt: u32, cfg: InterruptType) {
         const GICD_ICFGR_OFFSET: usize = 0xC00;
-        const GICD_ICFGR_SIZE: u32 = 16;
-        const CFG_BIT_WIDTH: u32 = 2;
-
-        let interrupt_cfg_register_offset: usize = (interrupt / GICD_ICFGR_SIZE) as usize;
-        let gicd_icfgr: *mut u32 = (self.gicd_ctlr + GICD_ICFGR_OFFSET) as *mut u32;
-        let current_interrupt_cfg: u32 =
-            unsafe { ptr::read_volatile(gicd_icfgr.add(interrupt_cfg_register_offset)) };
-
-        let interrupt_cfg_mask: u32 =
-            (cfg as u32) << ((interrupt % GICD_ICFGR_SIZE) * CFG_BIT_WIDTH);
-        let interrupt_cfg_field_mask: u32 = 3 << ((interrupt % GICD_ICFGR_SIZE) * CFG_BIT_WIDTH);
-        let new_interrupt_cfg: u32 =
-            (current_interrupt_cfg & !interrupt_cfg_field_mask) | interrupt_cfg_mask;
-        unsafe {
-            ptr::write_volatile(
-                gicd_icfgr.add(interrupt_cfg_register_offset),
-                new_interrupt_cfg,
-            );
-        };
+        const GICD_ICFGR_FIELD_SIZE: u32 = 16;
+        write_register(
+            self.gicd_ctlr + GICD_ICFGR_OFFSET,
+            GICD_ICFGR_FIELD_SIZE,
+            interrupt,
+            cfg as u32,
+        );
     }
 
     pub fn clear_pending(&self, interrupt: u32) {
-        const GICD_ICPENDR_SIZE: u32 = 32;
+        const GICD_ICPENDR_FIELD_SIZE: u32 = 1;
         const GICD_ICPENDR_OFFSET: usize = 0x280;
-        let interrupt_clear_pending_bit: u32 = 1 << (interrupt % GICD_ICPENDR_SIZE);
-        let interrupt_clear_pending_register: usize = (interrupt / GICD_ICPENDR_SIZE) as usize;
-        let gicd_icpendr: *mut u32 = (self.gicd_ctlr + GICD_ICPENDR_OFFSET) as *mut u32;
-        unsafe {
-            ptr::write_volatile(
-                gicd_icpendr.add(interrupt_clear_pending_register),
-                interrupt_clear_pending_bit,
-            );
-        }
+        write_register(
+            self.gicd_ctlr + GICD_ICPENDR_OFFSET,
+            GICD_ICPENDR_FIELD_SIZE,
+            interrupt,
+            0b1,
+        );
     }
 
     pub fn get_pending(&self, interrupt: u32) -> bool {
-        const GICD_ISPENDR_SIZE: u32 = 32;
+        const GICD_ISPENDR_FIELD_SIZE: u32 = 1;
         const GICD_ISPENDR_OFFSET: usize = 0x200;
-        let interrupt_pending_bit: u32 = 1 << (interrupt % GICD_ISPENDR_SIZE);
-        let interrupt_pending_register: usize = (interrupt / GICD_ISPENDR_SIZE) as usize;
-        let gicd_ispendr: *mut u32 = (self.gicd_ctlr + GICD_ISPENDR_OFFSET) as *mut u32;
-        let interrupt_pending: u32 =
-            unsafe { ptr::read_volatile(gicd_ispendr.add(interrupt_pending_register)) };
-        interrupt_pending & interrupt_pending_bit != 0
+        read_register(
+            self.gicd_ctlr + GICD_ISPENDR_OFFSET,
+            GICD_ISPENDR_FIELD_SIZE,
+            interrupt,
+        ) == 1
+    }
+
+    pub fn set_pending(&self, interrupt: u32) {
+        const GICD_ISPENDR_FIELD_SIZE: u32 = 1;
+        const GICD_ISPENDR_OFFSET: usize = 0x200;
+        write_register(
+            self.gicd_ctlr + GICD_ISPENDR_OFFSET,
+            GICD_ISPENDR_FIELD_SIZE,
+            interrupt,
+            0b1,
+        );
     }
 }

@@ -36,7 +36,7 @@ pub fn init_exception_table() {
 
 #[no_mangle]
 pub extern "C" fn _timer_interrupt(_ctx: &ExceptionContext) {
-    kprintf!("Timer interrupt!\n");
+    panic!("Timer interrupt!\n");
     let delta: u64 = 100_000;
     let next: u64;
     unsafe {

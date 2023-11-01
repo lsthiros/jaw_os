@@ -31,12 +31,6 @@ pub extern "C" fn _rust_start() -> ! {
 
     const TIMER_IRQ: u32 = 30;
 
-    // Enable interrupts in DAIF
-    kprintf!("DAIFClr\n");
-    unsafe {
-        asm!("msr DAIFClr, 0x2",);
-    }
-
     exception::init_exception_table();
     let current_el: exception::ExceptionLevel = exception::get_current_el();
     kprintf!("Current exception level: {:?}\n", current_el);
@@ -47,12 +41,11 @@ pub extern "C" fn _rust_start() -> ! {
     // Set the timer interrupt to be level sensitive with set_cfg
     kprintf!("Set cfg\n");
 
-    gic.set_priority(TIMER_IRQ, 0);
+    gic.set_redistributor_priority(TIMER_IRQ, 0);
+    gic.set_group(TIMER_IRQ, true);
     gic.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
-    gic.set_target(TIMER_IRQ, CpuId::Cpu0);
     gic.clear_pending(TIMER_IRQ);
     gic.set_enable(TIMER_IRQ);
-    gic.set_group(TIMER_IRQ);
 
     kprintf!("Set timer\n");
 
@@ -106,11 +99,24 @@ pub extern "C" fn _rust_start() -> ! {
         let pending: u64 = gic.get_pending(TIMER_IRQ) as u64;
         kprintf!(" pending: {:#x}\n", pending);
         if (pending != 0) {
-            loop {}
+            loop {
+                unsafe {
+                    asm!("wfi");
+                }
+            }
         }
 
         if (remaining > delta) {
-            panic!("Remaining is greater than delta");
+            kprintf!("remaining > delta. Setting interrupt manually and hoping for the best\n");
+            gic.set_pending(TIMER_IRQ);
+            kprintf!("good luck, us");
+            let val: u32 = gic.get_pending(TIMER_IRQ) as u32;
+            kprintf!("val: {:#x}\n", val);
+            loop {
+                unsafe {
+                    asm!("wfi");
+                }
+            }
         }
     }
 }
