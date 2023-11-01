@@ -109,9 +109,11 @@ pub extern "C" fn _rust_start() -> ! {
         if (remaining > delta) {
             kprintf!("remaining > delta. Setting interrupt manually and hoping for the best\n");
             gic.set_pending(TIMER_IRQ);
-            kprintf!("good luck, us");
+            gic.set_redistributor_pending(TIMER_IRQ);
+            kprintf!("good luck, us :)\n");
             let val: u32 = gic.get_pending(TIMER_IRQ) as u32;
-            kprintf!("val: {:#x}\n", val);
+            let other_val: u32 = gic.get_redistributor_pending(TIMER_IRQ) as u32;
+            kprintf!("val: {:#x} other_val {:#x}\n", val, other_val);
             loop {
                 unsafe {
                     asm!("wfi");

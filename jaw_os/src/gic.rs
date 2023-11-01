@@ -333,4 +333,25 @@ impl Gic {
             0b1,
         );
     }
+
+pub fn set_redistributor_pending(&self, interrupt: u32) {
+    const GICR_ISPENDR_OFFSET: usize = 0x200;
+    const GICR_ISPENDR_FIELD_SIZE: u32 = 1;
+    write_register(
+        self.gicr_ctlr + GICR_ISPENDR_OFFSET,
+        GICR_ISPENDR_FIELD_SIZE,
+        interrupt,
+        0b1,
+    );
+}
+
+pub fn get_redistributor_pending(&self, interrupt: u32) -> bool {
+    const GICR_ISPENDR_OFFSET: usize = 0x200;
+    const GICR_ISPENDR_FIELD_SIZE: u32 = 1;
+    read_register(
+        self.gicr_ctlr + GICR_ISPENDR_OFFSET,
+        GICR_ISPENDR_FIELD_SIZE,
+        interrupt,
+    ) == 1
+}
 }
