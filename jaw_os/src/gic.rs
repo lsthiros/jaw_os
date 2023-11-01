@@ -42,8 +42,48 @@ impl Gic {
         }
     }
 
+    // This will initialize the GIC as per instructions from:
+    // GICv3_Software_Overview_Official_Release_B.pdf
+    // document id: DAI 0492B
     pub fn init_gic(&self) {
-        // Enable SRE bypass for EL1. If we don't do this, we'll get a synchronous exception when we try to write ICC_GRPEN1_EL1
+
+        // 4.1: Global settings
+        let mut ctlr_contents: u32 = unsafe {
+            ptr::read_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32)
+        };
+        kprintf!("ctlr_contents: {:#x}\n", ctlr_contents);
+        // Turn on Group 0 and Group 1 interrupts and disable affinity routing
+        ctlr_contents |= 0b1;
+        ctlr_contents |= 0b10;
+        ctlr_contents &= !(0b1 << 4);
+
+        unsafe {
+            ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents | 0b11);
+        }
+
+        ctlr_contents = unsafe {
+            ptr::read_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32)
+        };
+
+        // 4.2 PE Specific Initialization
+        // 4.2.1: Wake up the PE
+        // Mark PE as awake. writing to system registers other than ICC_SRE_EL1 will cause
+        // unpredictable system behavior until this is done
+        const GICR_WAKER_OFFSET: usize = 0x014;
+        let mut gicr_waker_contents: u32 = unsafe {
+            ptr::read_volatile((self.gicr_ctlr + GICR_WAKER_OFFSET) as *mut u32)
+        };
+        kprintf!("gicr_waker_contents: {:#x}\n", gicr_waker_contents);
+        // Clear sleep bit in waker
+        const WAKER_SLEEP_BIT: u32 = 0b1 << 1;
+        gicr_waker_contents &= !WAKER_SLEEP_BIT;
+        unsafe {
+            ptr::write_volatile((self.gicr_ctlr + GICR_WAKER_OFFSET) as *mut u32, gicr_waker_contents);
+        }
+        kprintf!("ctlr_contents: {:#x}\n", ctlr_contents);
+
+        // Enable SRE bypass for EL1. If we don't do this, we'll get a synchronous
+        // exception when we try to write ICC_GRPEN1_EL1
         let sre_el1_contents: u64;
         unsafe {
             asm!(
@@ -60,18 +100,6 @@ impl Gic {
             );
         }
 
-        // Mark PE as awake
-        const GICR_WAKER_OFFSET: usize = 0x014;
-        let mut gicr_waker_contents: u32 = unsafe {
-            ptr::read_volatile((self.gicr_ctlr + GICR_WAKER_OFFSET) as *mut u32)
-        };
-        kprintf!("gicr_waker_contents: {:#x}\n", gicr_waker_contents);
-        // Clear sleep bit in waker
-        const WAKER_SLEEP_BIT: u32 = 0b1 << 1;
-        gicr_waker_contents &= !WAKER_SLEEP_BIT;
-        unsafe {
-            ptr::write_volatile((self.gicr_ctlr + GICR_WAKER_OFFSET) as *mut u32, gicr_waker_contents);
-        }
 
         kprintf!("Marking system as awake\n");
         // Loop until ChildrenAsleep is 0
@@ -113,22 +141,6 @@ impl Gic {
             );
         }
 
-        let mut ctlr_contents: u32 = unsafe {
-            ptr::read_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32)
-        };
-        kprintf!("ctlr_contents: {:#x}\n", ctlr_contents);
-        ctlr_contents |= 0b1;
-        ctlr_contents |= 0b10;
-        ctlr_contents &= !(0b1 << 4);
-
-        unsafe {
-            ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents | 0b11);
-        }
-
-        ctlr_contents = unsafe {
-            ptr::read_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32)
-        };
-        kprintf!("ctlr_contents: {:#x}\n", ctlr_contents);
 
         const PMR_MINIMUM_PRIORITY: u64 = 0xFF;
         unsafe {
