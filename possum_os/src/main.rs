@@ -27,7 +27,7 @@ fn panic(_info: &PanicInfo) -> ! {
 
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
-    kprintf!("jaw_os: The best operating system because it supports IPv6 Exclusivley (tm)\n");
+    kprintf!("possum_os: The best operating system because it supports IPv6 Exclusivley (tm)\n");
 
     const TIMER_IRQ: u32 = 30;
 

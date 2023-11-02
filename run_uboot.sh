@@ -9,9 +9,8 @@ else
   QEMU_ARGS=""
 fi
 
-# If KERNEL_DIR is not defined, use ./jaw_os/jaw_os/target/aarch64-unknown-none-softfloat/release/jaw_os
 if [ -z "$KERNEL_DIR" ]; then
-  KERNEL_DIR=./jaw_os/target/aarch64-unknown-none-softfloat/${RELEASE_DIR}/jaw_os
+  KERNEL_DIR=./possum_os/target/aarch64-unknown-none-softfloat/${RELEASE_DIR}/possum_os
 fi
 
 qemu-system-aarch64 \
