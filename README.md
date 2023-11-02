@@ -1,6 +1,9 @@
-# just another worthless Operating System
-writing this while drunk idk. Want to write this in Rust or something. Its
-going to support IPv6 fuck you Gerrik.
+# possum_os: Just another operating system.
+Writing this for fun after making a joke about an operating system that
+supports ipv6 exclusively. Not sure if thats possible.
+
+## The name
+An exercise left to the reader.
 
 ## Target
 I'm deciding to target the qemu arm "virt" target for the A53. I think this
@@ -17,13 +20,21 @@ That means, I may have to run:
 ```bash
 rustup target add aarch64-unknown-none-softfloat
 ```
-in order to get it building correctly
+
+xbuild is being used to manage the build environment, as such, the build command is
+```bash
+cargo xbuild --target=aarch64-unknown-none-softfloat.json
+```
 
 ## Bootloader
-I'm too stupid to write a bootloader so I'm using u-boot. First I gotta run
+At some point, I might want to use u-boot to boot this instead of the baremetal boot
+we're doing now. To build u-boot for the virt target, we need to do the following:
 ```bash
 CROSS_COMPILE=aarch64-none-elf-
 export CROSS_COMPILE
 make qemu_arm64_defconfig
 make
 ```
+
+## License
+GNU GPL v3
