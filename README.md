@@ -21,6 +21,11 @@ That means, I may have to run:
 rustup target add aarch64-unknown-none-softfloat
 ```
 
+xbuild is being used to manage the build environment, as such, the build command is
+```bash
+cargo xbuild --target=aarch64-unknown-none-softfloat.json
+```
+
 ## Bootloader
 At some point, I might want to use u-boot to boot this instead of the baremetal boot
 we're doing now. To build u-boot for the virt target, we need to do the following:
