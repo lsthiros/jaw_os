@@ -1,11 +1,25 @@
 #! /usr/bin/env sh
 
-if [ -z "$KERNEL_DIR" ]; then
-  KERNEL_DIR=./possum_os/target/aarch64-unknown-none-softfloat/release/possum_os
+# If KERNEL_DEBUG is defined, set QEMU_ARGS to -s -S and set RELEASE_DIR to debug
+if [ -n "$KERNEL_DEBUG" ]; then
+  QEMU_ARGS="-s -S"
+  RELEASE_DIR=debug
+else
+  RELEASE_DIR=release
+  QEMU_ARGS=""
 fi
 
-qemu-system-aarch64 \
-  -machine virt \
-  -cpu cortex-a53 \
-  -nographic \
-  -kernel $KERNEL_DIR
+if [ -z "$KERNEL_DIR" ]; then
+  KERNEL_DIR=./possum_os/target/aarch64-unknown-none-softfloat/${RELEASE_DIR}/possum_os
+fi
+
+# Run QEMU for aarch64 with the gicv3 and no security extensions
+MACHINE_ARGS=gic-version=3,secure=off
+
+qemu-system-aarch64       \
+  -machine virt           \
+  -cpu cortex-a53         \
+  -nographic              \
+  -machine  $MACHINE_ARGS \
+  -kernel $KERNEL_DIR     \
+  ${QEMU_ARGS}
