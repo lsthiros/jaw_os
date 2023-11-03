@@ -2,7 +2,7 @@
 #![no_std]
 #![no_main]
 
-use core::arch::global_asm;
+use core::arch::{asm, global_asm};
 use core::panic::PanicInfo;
 
 mod kprint;
@@ -11,11 +11,20 @@ global_asm!(include_str!("start.s"));
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+    kprintf!("Possum Panic! {}\n", _info);
+    loop {
+        unsafe {
+            asm!("wfi");
+        }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
     kprintf!("IPv6 Only Network Stack running version {}\n", 23);
-    loop {}
+    loop {
+        unsafe {
+            asm!("wfi");
+        }
+    }
 }
