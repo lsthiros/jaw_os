@@ -6,6 +6,8 @@ use core::arch::{asm, global_asm};
 use core::panic::PanicInfo;
 
 mod kprint;
+mod simple_uart;
+mod console;
 
 global_asm!(include_str!("start.s"));
 
