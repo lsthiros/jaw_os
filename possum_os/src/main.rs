@@ -4,8 +4,12 @@
 mod exception;
 mod gic;
 
+<<<<<<< HEAD
 use core::arch::asm;
 use core::arch::global_asm;
+=======
+use core::arch::{asm, global_asm};
+>>>>>>> master
 use core::panic::PanicInfo;
 use gic::CpuId;
 use gic::Gic;
@@ -17,7 +21,11 @@ global_asm!(include_str!("start.s"));
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+<<<<<<< HEAD
     kprintf!("Possum Panic: {}\n", _info);
+=======
+    kprintf!("Possum Panic! {}\n", _info);
+>>>>>>> master
     loop {
         unsafe {
             asm!("wfi");
@@ -27,6 +35,7 @@ fn panic(_info: &PanicInfo) -> ! {
 
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
+<<<<<<< HEAD
     kprintf!("possum_os: The best operating system because it supports IPv6 Exclusivley (tm)\n");
 
     const TIMER_IRQ: u32 = 30;
@@ -119,6 +128,12 @@ pub extern "C" fn _rust_start() -> ! {
                     asm!("wfi");
                 }
             }
+=======
+    kprintf!("IPv6 Only Network Stack running version {}\n", 23);
+    loop {
+        unsafe {
+            asm!("wfi");
+>>>>>>> master
         }
     }
 }
