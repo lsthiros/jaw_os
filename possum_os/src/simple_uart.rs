@@ -53,6 +53,13 @@ impl SimpleUart {
             }
         }
     }
+    
+    // Empty: true if the receive FIFO is empty.
+    pub fn empty(&mut self) -> bool {
+        unsafe {
+            (ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET)) & Self::UARTFR_RXFE_BIT_MASK) != 0
+        }
+    }
 
     pub fn getc(&mut self) -> u8 {
         let mut empty: bool;

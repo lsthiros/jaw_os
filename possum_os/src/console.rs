@@ -1,46 +1,142 @@
 // SPDX-License-Identifier: GPL-3.0-only
+use core::marker::Copy;
+use core::default::Default;
+use core::str;
 
-pub struct Fifo<const N: usize> {
-    buffer: [u8; N],
+use crate::simple_uart::SimpleUart;
+use crate::kprintf;
+
+struct RingBuffer<T: Copy + Default, const N: usize> {
+    buffer: [T; N],
+    head: usize,
     tail: usize,
+    count: usize,
 }
 
-impl<const N: usize> Fifo<N> {
+impl<T: Copy + Default, const N: usize> RingBuffer<T, N> {
     pub fn new() -> Self {
-        Fifo {
-            buffer: [0; N],
+        Self {
+            buffer: [Default::default(); N],
+            head: 0,
             tail: 0,
+            count: 0,
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.tail == 0
+        self.count == 0
     }
 
     pub fn is_full(&self) -> bool {
-        self.tail == N
+        self.count == N
     }
 
-    pub fn push(&mut self, data: u8) -> Result<(), &'static str> {
+    pub fn enqueue(&mut self, item: T) -> Result<(), T> {
         if self.is_full() {
-            return Err("Fifo is full");
+            return Err(item);
         }
 
-        self.buffer[self.tail] = data;
-        self.tail += 1;
+        self.buffer[self.tail] = item;
+        self.tail = (self.tail + 1) % N;
+        self.count += 1;
 
         Ok(())
     }
 
-    pub fn flush(&mut self) -> [u8; N] {
-        let mut flushed_data = [0; N];
-
-        for (i, data) in self.buffer.iter().enumerate() {
-            flushed_data[i] = *data;
+    pub fn dequeue(&mut self) -> Option<T> {
+        if self.is_empty() {
+            return None;
         }
 
-        self.tail = 0;
+        let item = self.buffer[self.head];
+        self.head = (self.head + 1) % N;
+        self.count -= 1;
 
-        flushed_data
+        Some(item)
+    }
+
+    pub fn flush(&mut self) -> ([T; N], usize) {
+        let mut result = [Default::default(); N];
+        let mut count = 0;
+
+        while let Some(item) = self.dequeue() {
+            result[count] = item;
+            count += 1;
+        }
+
+        (result, count)
+    }
+}
+
+// Console struct that contains a SimpleUart and a RingBuffer
+pub struct Console {
+    uart: SimpleUart,
+    buffer: RingBuffer<u8, 1024>,
+}
+
+// Define a ConsoleCallback type thats a function pointer that takes a &str and return u8
+pub type ConsoleCallback = fn(&str) -> u8;
+
+// Define a ConsoleCommand struct that contains a &str and a ConsoleCallback
+pub struct ConsoleCommand {
+    command: &'static str,
+    callback: ConsoleCallback,
+}
+
+fn echo(input: &str) -> u8 {
+    kprintf!("{}", input);
+    0
+}
+
+// Static array of ConsoleCommands
+static COMMANDS: [ConsoleCommand; 1] = [
+    ConsoleCommand {
+        command: "echo",
+        callback: echo,
+    },
+];
+
+impl Console {
+    pub fn new() -> Self {
+        Self {
+            uart: SimpleUart::new(0x0900_0000 as *mut u8),
+            buffer: RingBuffer::new(),
+        }
+    }
+
+    pub fn service(&mut self) {
+        if !self.uart.empty() {
+            let byte = self.uart.getc();
+            if byte == 0x0D {
+                kprintf!("\n");
+                let (buffer, count) = self.buffer.flush();
+                let input = str::from_utf8(&buffer[..count]).unwrap();
+                let mut found = false;
+                for command in COMMANDS.iter() {
+                    if input.starts_with(command.command) {
+                        let result = (command.callback)(&input[command.command.len()..]);
+                        if result == 0 {
+                            kprintf!("Command executed successfully\n");
+                        } else {
+                            kprintf!("Command failed with error code {}\n", result);
+                        }
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    kprintf!("Command not found\n");
+                }
+            } else {
+                if byte == 0x08 {
+                    if let Some(_) = self.buffer.dequeue() {
+                        kprintf!("\x08 \x08");
+                    }
+                } else {
+                    self.buffer.enqueue(byte).unwrap();
+                    kprintf!("{}", byte as char);
+                }
+            }
+        }
     }
 }
