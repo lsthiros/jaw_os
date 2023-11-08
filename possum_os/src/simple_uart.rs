@@ -46,18 +46,21 @@ impl SimpleUart {
         let mut busy: bool;
         loop {
             unsafe {
-                busy = (ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET)) & Self::UARTFR_BUSY_BIT_MASK) != 0;
+                busy = (ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET))
+                    & Self::UARTFR_BUSY_BIT_MASK)
+                    != 0;
             }
             if !busy {
                 break;
             }
         }
     }
-    
+
     // Empty: true if the receive FIFO is empty.
     pub fn empty(&mut self) -> bool {
         unsafe {
-            (ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET)) & Self::UARTFR_RXFE_BIT_MASK) != 0
+            (ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET)) & Self::UARTFR_RXFE_BIT_MASK)
+                != 0
         }
     }
 
@@ -65,7 +68,9 @@ impl SimpleUart {
         let mut empty: bool;
         loop {
             unsafe {
-                empty = ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET)) & Self::UARTFR_RXFE_BIT_MASK != 0;
+                empty = ptr::read_volatile(self.base.add(Self::UARTFR_OFFSET))
+                    & Self::UARTFR_RXFE_BIT_MASK
+                    != 0;
             }
             if !empty {
                 break;

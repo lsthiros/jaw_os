@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-use core::marker::Copy;
 use core::default::Default;
+use core::marker::Copy;
 use core::str;
 
-use crate::simple_uart::SimpleUart;
 use crate::kprintf;
+use crate::simple_uart::SimpleUart;
 
 struct RingBuffer<T: Copy + Default, const N: usize> {
     buffer: [T; N],
@@ -55,6 +55,18 @@ impl<T: Copy + Default, const N: usize> RingBuffer<T, N> {
         Some(item)
     }
 
+    pub fn pop(&mut self) -> Option<T> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let index = (self.tail + N - 1) % N;
+        self.tail = index;
+        self.count -= 1;
+
+        Some(self.buffer[index])
+    }
+
     pub fn flush(&mut self) -> ([T; N], usize) {
         let mut result = [Default::default(); N];
         let mut count = 0;
@@ -72,6 +84,7 @@ impl<T: Copy + Default, const N: usize> RingBuffer<T, N> {
 pub struct Console {
     uart: SimpleUart,
     buffer: RingBuffer<u8, 1024>,
+    needs_start: bool,
 }
 
 // Define a ConsoleCallback type thats a function pointer that takes a &str and return u8
@@ -84,27 +97,30 @@ pub struct ConsoleCommand {
 }
 
 fn echo(input: &str) -> u8 {
-    kprintf!("{}", input);
+    kprintf!("{}\n", input);
     0
 }
 
 // Static array of ConsoleCommands
-static COMMANDS: [ConsoleCommand; 1] = [
-    ConsoleCommand {
-        command: "echo",
-        callback: echo,
-    },
-];
+static COMMANDS: [ConsoleCommand; 1] = [ConsoleCommand {
+    command: "echo",
+    callback: echo,
+}];
 
 impl Console {
     pub fn new() -> Self {
         Self {
             uart: SimpleUart::new(0x0900_0000 as *mut u8),
             buffer: RingBuffer::new(),
+            needs_start: true,
         }
     }
 
     pub fn service(&mut self) {
+        if self.needs_start {
+            kprintf!(">");
+            self.needs_start = false;
+        }
         if !self.uart.empty() {
             let byte = self.uart.getc();
             if byte == 0x0D {
@@ -127,10 +143,13 @@ impl Console {
                 if !found {
                     kprintf!("Command not found\n");
                 }
+                self.needs_start = true;
             } else {
-                if byte == 0x08 {
-                    if let Some(_) = self.buffer.dequeue() {
-                        kprintf!("\x08 \x08");
+                if byte == 0x7F || byte == 0x08 {
+                    // backspace
+                    if !self.buffer.is_empty() {
+                        _ = self.buffer.pop();
+                        kprintf!("\x08 \x08"); // erase last character
                     }
                 } else {
                     self.buffer.enqueue(byte).unwrap();

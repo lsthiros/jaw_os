@@ -5,9 +5,9 @@
 use core::arch::{asm, global_asm};
 use core::panic::PanicInfo;
 
+mod console;
 mod kprint;
 mod simple_uart;
-mod console;
 
 global_asm!(include_str!("start.s"));
 
@@ -26,6 +26,6 @@ pub extern "C" fn _rust_start() -> ! {
     kprintf!("IPv6 Only Network Stack running version {}\n", 23);
     let mut console = console::Console::new();
     loop {
-        console.service(); 
+        console.service();
     }
 }
