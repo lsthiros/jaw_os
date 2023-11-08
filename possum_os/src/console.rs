@@ -3,8 +3,8 @@ use core::default::Default;
 use core::marker::Copy;
 use core::str;
 
-use crate::kprintf;
 use crate::simple_uart::SimpleUart;
+use crate::{kprintf, uart_printf};
 
 struct RingBuffer<T: Copy + Default, const N: usize> {
     buffer: [T; N],
@@ -118,13 +118,13 @@ impl Console {
 
     pub fn service(&mut self) {
         if self.needs_start {
-            kprintf!(">");
+            self.uart.putc(b'>');
             self.needs_start = false;
         }
         if !self.uart.empty() {
             let byte = self.uart.getc();
             if byte == 0x0D {
-                kprintf!("\n");
+                self.uart.putc(b'\n');
                 let (buffer, count) = self.buffer.flush();
                 let input = str::from_utf8(&buffer[..count]).unwrap();
                 let mut found = false;
@@ -132,9 +132,9 @@ impl Console {
                     if input.starts_with(command.command) {
                         let result = (command.callback)(&input[command.command.len()..]);
                         if result == 0 {
-                            kprintf!("Command executed successfully\n");
+                            self.uart.puts("Command executed successfully\n");
                         } else {
-                            kprintf!("Command failed with error code {}\n", result);
+                            uart_printf!(self.uart, "Command failed with error code {}\n", result);
                         }
                         found = true;
                         break;
@@ -149,11 +149,11 @@ impl Console {
                     // backspace
                     if !self.buffer.is_empty() {
                         _ = self.buffer.pop();
-                        kprintf!("\x08 \x08"); // erase last character
+                        self.uart.puts("\x08 \x08"); // erase last character
                     }
                 } else {
                     self.buffer.enqueue(byte).unwrap();
-                    kprintf!("{}", byte as char);
+                    self.uart.putc(byte);
                 }
             }
         }

@@ -56,6 +56,12 @@ impl SimpleUart {
         }
     }
 
+    pub fn puts(&mut self, s: &str) {
+        for c in s.bytes() {
+            self.putc(c);
+        }
+    }
+
     // Empty: true if the receive FIFO is empty.
     pub fn empty(&mut self) -> bool {
         unsafe {
@@ -77,5 +83,16 @@ impl SimpleUart {
             }
         }
         unsafe { ptr::read_volatile(self.base.add(Self::UARTDR_OFFSET)) }
+    }
+
+    pub fn _printf(&mut self, args: fmt::Arguments<'_>) {
+        self.write_fmt(args).unwrap();
+    }
+}
+
+#[macro_export]
+macro_rules! uart_printf {
+    ($uart:expr, $($arg:tt)*) => {
+        $uart._printf(format_args!($($arg)*));
     }
 }
