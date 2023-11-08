@@ -7,6 +7,9 @@ _start:
     ldr     x30, =LD_STACK_PTR
     mov     sp, x30
     bl      _rust_start
+_backstop: // Emergency wfi loop in case main returns
+    wfi
+    b       _backstop
 
 .equ PSCI_SYSTEM_OFF, 0x84000008
 .globl system_off
