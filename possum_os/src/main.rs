@@ -8,6 +8,7 @@ use core::panic::PanicInfo;
 mod console;
 mod kprint;
 mod simple_uart;
+mod ring_buffer;
 
 global_asm!(include_str!("start.s"));
 
