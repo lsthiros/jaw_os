@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use core::str;
 
-use crate::simple_uart::SimpleUart;
 use crate::ring_buffer::RingBuffer;
+use crate::simple_uart::SimpleUart;
 use crate::{kprintf, uart_printf};
 
 // Console struct that contains a SimpleUart and a RingBuffer
@@ -26,11 +26,25 @@ fn echo(input: &str) -> u8 {
     0
 }
 
+fn device_tree(_: &str) -> u8 {
+    let dt = crate::device_tree::device_tree_from_ram_ptr(
+        crate::device_tree::QEMU_DEVICE_TREE_OFSET as *const u8,
+    );
+    kprintf!("Device Tree:{:#?}\n", dt);
+    0
+}
+
 // Static array of ConsoleCommands
-static COMMANDS: [ConsoleCommand; 1] = [ConsoleCommand {
-    command: "echo",
-    callback: echo,
-}];
+static COMMANDS: [ConsoleCommand; 2] = [
+    ConsoleCommand {
+        command: "echo",
+        callback: echo,
+    },
+    ConsoleCommand {
+        command: "dt",
+        callback: device_tree,
+    },
+];
 
 impl Console {
     pub fn new() -> Self {
