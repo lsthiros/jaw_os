@@ -31,6 +31,7 @@ fn device_tree(_: &str) -> u8 {
         crate::device_tree::QEMU_DEVICE_TREE_OFSET as *const u8,
     );
     kprintf!("Device Tree:{:#?}\n", dt);
+    dt.print_structure(crate::device_tree::QEMU_DEVICE_TREE_OFSET as *const u8,);
     0
 }
 
