@@ -76,6 +76,7 @@ fn strnlen(ptr: *const u8, max_len: usize) -> usize {
         if unsafe { *ptr } == 0 {
             return i;
         }
+        ptr = unsafe { ptr.add(1) };
     }
     max_len
 }
@@ -95,6 +96,13 @@ impl DeviceTree {
             strings_size: 0,
         };
         dt
+    }
+
+    pub fn get_string_from_offset(&self, offset: u32) -> &str {
+        let mut ptr = unsafe { self.base.add(self.strings_offset as usize).add(offset as usize) };
+        let len = strnlen(ptr, MAX_STR_LEN);
+        let slice = unsafe { core::slice::from_raw_parts(ptr, len) };
+        unsafe {core::str::from_utf8_unchecked(slice)}
     }
 
     pub fn print_structure(&self, ram_ptr: *const u8) {
