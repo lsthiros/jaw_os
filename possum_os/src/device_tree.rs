@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use core::convert::From;
+use core::fmt::LowerHex;
 use core::ops::{Shl, Shr, BitAnd, BitOr};
 
 use crate::kprintf;
@@ -56,9 +57,10 @@ pub fn device_tree_from_ram_ptr(ram_ptr: *const u8) -> DeviceTree {
     dt
 }
 
-fn read_big_endian<T: Copy + From<u8> + Shl<i32, Output = T> + Shr<i32, Output = T> + BitAnd<T, Output = T> + BitOr<T, Output = T>>(addr: *const T) -> T {
+fn read_big_endian<T: Copy + From<u8> + Shl<i32, Output = T> + Shr<i32, Output = T> + BitAnd<T, Output = T> + BitOr<T, Output = T> + LowerHex>(addr: *const T) -> T {
     let mut input: T = unsafe {*addr};
     let mut result: T = From::from(0);
+    kprintf!("input: {:#x}\n", input);
 
     for _ in 0..core::mem::size_of::<T>() {
         result = result << 8;
@@ -72,13 +74,12 @@ fn read_big_endian<T: Copy + From<u8> + Shl<i32, Output = T> + Shr<i32, Output =
 
 fn strnlen(ptr: *const u8, max_len: usize) -> usize {
     let mut ptr: *const u8 = ptr;
-    for i in 0..max_len {
-        if unsafe { *ptr } == 0 {
-            return i;
-        }
+    let mut i = 0;
+    while i < max_len && unsafe { *ptr } != 0 {
         ptr = unsafe { ptr.add(1) };
+        i += 1;
     }
-    max_len
+    i
 }
 
 const MAX_STR_LEN: usize = 256;
@@ -99,58 +100,17 @@ impl DeviceTree {
     }
 
     pub fn get_string_from_offset(&self, offset: u32) -> &str {
-        let mut ptr = unsafe { self.base.add(self.strings_offset as usize).add(offset as usize) };
+        let ptr = unsafe { self.base.add(self.strings_offset as usize).add(offset as usize) };
         let len = strnlen(ptr, MAX_STR_LEN);
         let slice = unsafe { core::slice::from_raw_parts(ptr, len) };
         unsafe {core::str::from_utf8_unchecked(slice)}
     }
 
-    pub fn print_structure(&self, ram_ptr: *const u8) {
-        let mut ptr = unsafe { ram_ptr.add(self.structure_offset as usize) };
-        let end_ptr = unsafe { ptr.add(self.structure_size as usize) };
-
-        while ptr < end_ptr {
-            let tag = unsafe { *(ptr as *const u32) };
-            let tag_size = unsafe { *(ptr.add(4) as *const u32) };
-            let tag_data = unsafe { ptr.add(8) };
-
-            match tag {
-                FDT_BEGIN_NODE => {
-                    // Create a str, name, from the tag_data bytes
-                    let name: &str = unsafe {
-                        let len = strnlen(tag_data, MAX_STR_LEN);
-                        let slice = core::slice::from_raw_parts(tag_data, len);
-                        core::str::from_utf8_unchecked(slice)
-                    };
-                    kprintf!("{} {{\n", name);
-                }
-                FDT_END_NODE => {
-                    kprintf!("}}\n");
-                }
-                FDT_PROP => {
-                    let prop_name: &str = unsafe {
-                        let len = strnlen(tag_data, MAX_STR_LEN);
-                        let slice = core::slice::from_raw_parts(tag_data, len);
-                        core::str::from_utf8_unchecked(slice)
-                    };
-                    let prop_data = unsafe { tag_data.add((prop_name.len() + 1) & !3) };
-                    kprintf!("{} = ", prop_name);
-                    for i in 0..tag_size / 4 {
-                        let data = unsafe { *(prop_data.add(i.try_into().unwrap()) as *const u32) };
-                        kprintf!("{:#x} ", data);
-                    }
-                    kprintf!("\n");
-                }
-                FDT_NOP => {}
-                FDT_END => {
-                    break;
-                }
-                _ => {
-                    kprintf!("unknown tag {:#x}\n", tag);
-                }
-            }
-
-            ptr = unsafe { ptr.add(((tag_size + 3) & !3) as usize) };
+    pub fn print_structure(&self) {
+        let mut indent: usize = 0;
+        let mut ptr = unsafe { self.base.add(self.structure_offset as usize) };
+        while ptr < unsafe { self.base.add(self.structure_offset as usize + self.structure_size as usize) } {
+            ptr = unsafe { ptr.add(size as usize) };
         }
     }
 }
