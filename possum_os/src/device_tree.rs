@@ -72,14 +72,25 @@ fn read_big_endian<T: Copy + From<u8> + Shl<i32, Output = T> + Shr<i32, Output =
     result
 }
 
-fn strnlen(ptr: *const u8, max_len: usize) -> usize {
+fn strnlen(ptr: *const u8, max_len: usize) -> Option<usize> {
     let mut ptr: *const u8 = ptr;
     let mut i = 0;
     while i < max_len && unsafe { *ptr } != 0 {
         ptr = unsafe { ptr.add(1) };
         i += 1;
     }
-    i
+    if i == max_len {
+        None
+    } else {
+        Some(i)
+    }
+}
+
+fn console_indent(indent: usize) {
+    const SPACES_PER_INDENT: usize = 2;
+    for _ in 0..(indent * SPACES_PER_INDENT) {
+        kprintf!(" ");
+    }
 }
 
 const MAX_STR_LEN: usize = 256;
@@ -107,10 +118,52 @@ impl DeviceTree {
     }
 
     pub fn print_structure(&self) {
+        /// Size of a Device Tree tag in bytes
+        const FDT_TAG_SIZE: usize = 4;
         let mut indent: usize = 0;
         let mut ptr = unsafe { self.base.add(self.structure_offset as usize) };
-        while ptr < unsafe { self.base.add(self.structure_offset as usize + self.structure_size as usize) } {
-            ptr = unsafe { ptr.add(size as usize) };
+        let mut valid = true;
+        let end: *const u8 = unsafe { self.base.add(self.structure_offset as usize + self.structure_size as usize) };
+        while (ptr < end) && valid {
+            let tag = read_big_endian(ptr as *const u32);
+            match tag {
+                FDT_BEGIN_NODE => {
+                    let name_start = unsafe { ptr.add(FDT_TAG_SIZE) };
+                    console_indent(indent);
+                    if let Some(name_len) = strnlen(unsafe { ptr.add(FDT_TAG_SIZE) }, MAX_STR_LEN) {
+                        let name_slice = unsafe { core::slice::from_raw_parts(name_start, name_len) };
+                        let name = unsafe { core::str::from_utf8_unchecked(name_slice) };
+                        kprintf!("{}\n", name);
+                        indent += 1;
+                        ptr = unsafe { name_start.add((name_len + 4) & !3) };
+                    } else {
+                        kprintf!("<invalid node name>\n");
+                        valid = false;
+                    }
+                    // Set ptr to next four-byte aligned address after the node name
+                }
+                FDT_END_NODE => {
+                    if indent > 0 {
+                        indent -= 1;
+                    }
+                    else {
+                        kprintf!("Invalid end node\n");
+                        valid = false;
+                    }
+                }
+                FDT_PROP => {
+                    unimplemented!()
+                }
+                FDT_NOP => {
+                }
+                FDT_END => {
+                    unimplemented!()
+                }
+                _ => {
+                    kprintf!("Unknown tag {:#x}\n", tag);
+                    break;
+                }
+            }
         }
     }
 }
