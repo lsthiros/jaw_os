@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use core::convert::From;
 use core::fmt::LowerHex;
+use core::mem::size_of;
 use core::ops::{Shl, Shr, BitAnd, BitOr};
 
 use crate::kprintf;
@@ -60,7 +61,6 @@ pub fn device_tree_from_ram_ptr(ram_ptr: *const u8) -> DeviceTree {
 fn read_big_endian<T: Copy + From<u8> + Shl<i32, Output = T> + Shr<i32, Output = T> + BitAnd<T, Output = T> + BitOr<T, Output = T> + LowerHex>(addr: *const T) -> T {
     let mut input: T = unsafe {*addr};
     let mut result: T = From::from(0);
-    kprintf!("input: {:#x}\n", input);
 
     for _ in 0..core::mem::size_of::<T>() {
         result = result << 8;
@@ -93,6 +93,12 @@ fn console_indent(indent: usize) {
     }
 }
 
+fn next_four_byte_align(offset: usize) -> usize {
+    const FOUR_BYTE_MASK: usize = 0b11;
+    const ALIGNMENT: usize = 4;
+    (offset + (ALIGNMENT - 1)) & !FOUR_BYTE_MASK
+}
+
 const MAX_STR_LEN: usize = 256;
 
 impl DeviceTree {
@@ -113,38 +119,46 @@ impl DeviceTree {
     pub fn get_string_from_offset(&self, offset: u32) -> &str {
         let ptr = unsafe { self.base.add(self.strings_offset as usize).add(offset as usize) };
         let len = strnlen(ptr, MAX_STR_LEN);
-        let slice = unsafe { core::slice::from_raw_parts(ptr, len) };
+        // TODO: This is unsafe. We should check the length.
+        let slice = unsafe { core::slice::from_raw_parts(ptr, len.unwrap()) };
         unsafe {core::str::from_utf8_unchecked(slice)}
     }
 
     pub fn print_structure(&self) {
         /// Size of a Device Tree tag in bytes
         const FDT_TAG_SIZE: usize = 4;
+
         let mut indent: usize = 0;
         let mut ptr = unsafe { self.base.add(self.structure_offset as usize) };
         let mut valid = true;
+        let mut found_end = false;
+
         let end: *const u8 = unsafe { self.base.add(self.structure_offset as usize + self.structure_size as usize) };
-        while (ptr < end) && valid {
+        while (ptr < end) && valid  && !found_end {
             let tag = read_big_endian(ptr as *const u32);
             match tag {
                 FDT_BEGIN_NODE => {
+                    kprintf!("BEGIN_NODE\n");
                     let name_start = unsafe { ptr.add(FDT_TAG_SIZE) };
                     console_indent(indent);
-                    if let Some(name_len) = strnlen(unsafe { ptr.add(FDT_TAG_SIZE) }, MAX_STR_LEN) {
+                    if let Some(name_len) = strnlen(name_start, MAX_STR_LEN) {
+                        kprintf!("Name len: {}\n", name_len);
                         let name_slice = unsafe { core::slice::from_raw_parts(name_start, name_len) };
                         let name = unsafe { core::str::from_utf8_unchecked(name_slice) };
                         kprintf!("{}\n", name);
                         indent += 1;
-                        ptr = unsafe { name_start.add((name_len + 4) & !3) };
+                        const NULL_BYTE_SIZE: usize = 1;
+                        ptr = unsafe { name_start.add(next_four_byte_align(name_len + NULL_BYTE_SIZE)) };
                     } else {
                         kprintf!("<invalid node name>\n");
                         valid = false;
                     }
-                    // Set ptr to next four-byte aligned address after the node name
                 }
                 FDT_END_NODE => {
+                    kprintf!("END_NODE\n");
                     if indent > 0 {
                         indent -= 1;
+                        ptr = unsafe { ptr.add(FDT_TAG_SIZE) };
                     }
                     else {
                         kprintf!("Invalid end node\n");
@@ -152,18 +166,47 @@ impl DeviceTree {
                     }
                 }
                 FDT_PROP => {
-                    unimplemented!()
+                    kprintf!("PROP\n");
+                    const NAME_OFFSET_OFFSET: usize = FDT_TAG_SIZE;
+                    const SIZE_OFFSET: usize = NAME_OFFSET_OFFSET + size_of::<u32>();
+                    const DATA_OFFSET: usize = SIZE_OFFSET + size_of::<u32>();
+
+                    let name_offset: u32 = read_big_endian(unsafe { ptr.add(NAME_OFFSET_OFFSET) as *const u32 });
+                    let name: &str = self.get_string_from_offset(name_offset);
+                    let size: u32 = read_big_endian(unsafe { ptr.add(SIZE_OFFSET) as *const u32 });
+                    let data: *const u8 = unsafe { ptr.add(DATA_OFFSET) };
+
+                    console_indent(indent);
+                    kprintf!("{}: ", name);
+                    if size > 0 {
+                        let mut i = 0;
+                        while i < size {
+                            let byte = unsafe { *data.add(i as usize) };
+                            kprintf!("{:02x} ", byte);
+                            i += 1;
+                        }
+                        kprintf!("\n");
+                    } else {
+                        kprintf!("<empty>\n");
+                    }
+                    ptr = unsafe { data.add((next_four_byte_align(size.try_into().unwrap())) as usize) };
                 }
                 FDT_NOP => {
+                    kprintf!("NOP\n");
+                    ptr = unsafe { ptr.add(FDT_TAG_SIZE) };
                 }
                 FDT_END => {
-                    unimplemented!()
+                    kprintf!("END\n");
+                    found_end = true;
                 }
                 _ => {
                     kprintf!("Unknown tag {:#x}\n", tag);
                     break;
                 }
             }
+        }
+        if !found_end {
+            kprintf!("No end tag found\n");
         }
     }
 }
