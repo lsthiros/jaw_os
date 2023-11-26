@@ -30,6 +30,16 @@ as a guide. It says to use this command to build
 cargo xbuild --target=aarch64-unknown-none-softfloat.json --release
 ```
 
+### Running
+This can be run on QEMU by using the included run_qemu script. If the env variable
+`KERNEL_DEBUG` is set to 1, qemu will run with an open debug port on port 1234.
+
+#### Notes on debugging with QEMU
+Something very odd is happening: When I run with the options in the run script, the
+qemu system is not putting a device tree at the [base of ram](https://www.qemu.org/docs/master/system/arm/virt.html#hardware-configuration-information-for-bare-metal-programming)
+. This could be because we're technically running an ELF file with the `-kernel`
+argument which has its [own insinuations](https://stackoverflow.com/questions/58420670/qemu-bios-vs-kernel-vs-device-loader-file)
+
 ## Bootloader
 At some point, I might want to use u-boot to boot this instead of the baremetal boot
 we're doing now. To build u-boot for the virt target, we need to do the following:
