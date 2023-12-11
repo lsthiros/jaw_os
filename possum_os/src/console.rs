@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-use core::str;
 use core::arch::asm;
+use core::str;
 
-use crate::ring_buffer::RingBuffer;
-use crate::simple_uart::SimpleUart;
+use crate::exception;
 use crate::gic::Gic;
 use crate::gic::InterruptType;
-use crate::exception;
+use crate::ring_buffer::RingBuffer;
+use crate::simple_uart::SimpleUart;
 use crate::{kprintf, uart_printf};
 
 // Console struct that contains a SimpleUart and a RingBuffer
@@ -46,7 +46,11 @@ fn interrupt_test(_: &str) -> u8 {
     let current_el: exception::ExceptionLevel = exception::get_current_el();
     kprintf!("Current exception level: {:?}\n", current_el);
 
-    let gic = Gic::new(0x0800_0000 as usize, 0x0801_0000 as usize, 0x080A_0000 as usize);
+    let gic = Gic::new(
+        0x0800_0000 as usize,
+        0x0801_0000 as usize,
+        0x080A_0000 as usize,
+    );
     kprintf!("Init GIC\n");
     gic.init_gic();
     // Set the timer interrupt to be level sensitive with set_cfg
@@ -64,16 +68,18 @@ fn interrupt_test(_: &str) -> u8 {
     let ctl_val: u64 = 1;
     let next: u64;
     let delta: u64 = 100_000_000;
+    // Personal note here: remember to set the cmp value before starting the clock
+    // because otherwise, an interrupt will be issued immediately (at least in qemu)
     unsafe {
         asm!(
             "mrs {0}, CNTFRQ_EL0",
-            "msr CNTP_CTL_EL0, {1}",
-            "msr CNTP_TVAL_EL0, {3}",
+            "msr CNTP_TVAL_EL0, {1}",
             "mrs {2}, CNTP_CVAL_EL0",
+            "msr CNTP_CTL_EL0, {3}",
             out(reg) freq_val,
-            in(reg) ctl_val,
-            out(reg) next,
             in(reg) delta,
+            out(reg) next,
+            in(reg) ctl_val,
         );
     }
 
@@ -125,11 +131,16 @@ fn interrupt_test(_: &str) -> u8 {
             let val: u32 = gic.get_pending(TIMER_IRQ) as u32;
             let other_val: u32 = gic.get_redistributor_pending(TIMER_IRQ) as u32;
             kprintf!("val: {:#x} other_val {:#x}\n", val, other_val);
-            loop {
-                unsafe {
-                    asm!("wfi");
-                }
+
+            let new_cntp_ctl: u64;
+            unsafe {
+                asm!(
+                    "mrs {0}, CNTP_CTL_EL0",
+                    out(reg) new_cntp_ctl,
+                );
             }
+            kprintf!("new_cntp_ctl: {:#x}\n", new_cntp_ctl);
+            panic!("THE TIMER STILL DUN WORK");
         }
     }
     0
