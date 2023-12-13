@@ -4,6 +4,7 @@ use core::arch::asm;
 use core::ptr;
 
 use crate::{kprintf, gic};
+use crate::gic::common::{write_register, read_register, InterruptType};
 
 // GIC Info and addresses from:
 // http://web.archive.org/web/20230327162435/https://lowenware.com/blog/aarch64-gic-and-timer-interrupt/
@@ -13,10 +14,6 @@ pub struct Gic {
     gicr_ctlr: usize,
 }
 
-pub enum InterruptType {
-    LevelSensitive = 0,
-    EdgeTriggered = 2,
-}
 
 pub enum CpuId {
     Cpu0 = 0,
@@ -29,30 +26,6 @@ pub enum CpuId {
     Cpu7 = 7,
 }
 
-fn write_register(base: usize, field_width: u32, entry: u32, value: u32) {
-    let entries_per_register: u32 = 32 / field_width;
-    let offset: usize = (entry / entries_per_register) as usize;
-    let bit_offset: u32 = (entry % entries_per_register) * field_width;
-    let field_mask: u32 = (1 << field_width) - 1;
-
-    let register: *mut u32 = (base + offset) as *mut u32;
-    let current_value: u32 = unsafe { ptr::read_volatile(register) };
-    let value_to_write: u32 = (current_value & !(field_mask << bit_offset)) | ((value & field_mask) << bit_offset);
-    unsafe {
-        ptr::write_volatile(register, value_to_write);
-    }
-}
-
-fn read_register(base: usize, field_width: u32, entry: u32) -> u32 {
-    let entries_per_register: u32 = 32 / field_width;
-    let offset: usize = (entry / entries_per_register) as usize;
-    let bit_offset: u32 = (entry % entries_per_register) * field_width;
-    let field_mask: u32 = (1 << field_width) - 1;
-
-    let register: *mut u32 = (base + offset) as *mut u32;
-    let current_value: u32 = unsafe { ptr::read_volatile(register) };
-    (current_value >> bit_offset) & field_mask
-}
 
 impl Gic {
     // Distributor Controller
@@ -345,13 +318,4 @@ pub fn set_redistributor_pending(&self, interrupt: u32) {
     );
 }
 
-pub fn get_redistributor_pending(&self, interrupt: u32) -> bool {
-    const GICR_ISPENDR_OFFSET: usize = 0x200;
-    const GICR_ISPENDR_FIELD_SIZE: u32 = 1;
-    read_register(
-        self.gicr_ctlr + GICR_ISPENDR_OFFSET,
-        GICR_ISPENDR_FIELD_SIZE,
-        interrupt,
-    ) == 1
-}
 }

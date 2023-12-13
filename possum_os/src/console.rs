@@ -4,7 +4,7 @@ use core::str;
 
 use crate::exception;
 use crate::gic::Gic;
-use crate::gic::InterruptType;
+use crate::gic::common::InterruptType;
 use crate::ring_buffer::RingBuffer;
 use crate::simple_uart::SimpleUart;
 use crate::{kprintf, uart_printf};
