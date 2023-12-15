@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+use core::ptr;
 
 /// Represents the type of interrupt.
 pub enum InterruptType {

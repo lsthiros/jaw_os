@@ -6,9 +6,6 @@ mod gic;
 
 use core::arch::{asm, global_asm};
 use core::panic::PanicInfo;
-use gic::CpuId;
-use gic::Gic;
-use gic::InterruptType;
 
 mod console;
 mod device_tree;

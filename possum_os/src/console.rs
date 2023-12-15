@@ -3,13 +3,15 @@ use core::arch::asm;
 use core::str;
 
 use crate::exception;
-use crate::gic::Gic;
+use crate::gic::gic_dist::GicDistributor;
+use crate::gic::gic_redist::GicRedist;
 use crate::gic::common::InterruptType;
 use crate::ring_buffer::RingBuffer;
 use crate::simple_uart::SimpleUart;
 use crate::{kprintf, uart_printf};
 
 // Console struct that contains a SimpleUart and a RingBuffer
+const CONSOLE_RING_BUFFER_SIZE: usize = 1024;
 pub struct Console {
     uart: SimpleUart,
     buffer: RingBuffer<u8, 1024>,
@@ -46,21 +48,19 @@ fn interrupt_test(_: &str) -> u8 {
     let current_el: exception::ExceptionLevel = exception::get_current_el();
     kprintf!("Current exception level: {:?}\n", current_el);
 
-    let gic = Gic::new(
-        0x0800_0000 as usize,
-        0x0801_0000 as usize,
-        0x080A_0000 as usize,
-    );
+    let distributor: GicDistributor = GicDistributor::new(0x0800_0000 as usize);
+    let redistributor: GicRedist = GicRedist::new(0x080A_0000 as usize);
     kprintf!("Init GIC\n");
-    gic.init_gic();
-    // Set the timer interrupt to be level sensitive with set_cfg
-    kprintf!("Set cfg\n");
 
-    gic.set_redistributor_priority(TIMER_IRQ, 0);
-    gic.set_group(TIMER_IRQ, true);
-    gic.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
-    gic.clear_pending(TIMER_IRQ);
-    gic.set_enable(TIMER_IRQ);
+    distributor.init_gic();
+    redistributor.init();
+    // Set the timer interrupt to be level sensitive with set_cfg
+
+    redistributor.set_priority(TIMER_IRQ, 0);
+    redistributor.set_group(TIMER_IRQ, true);
+    redistributor.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
+    redistributor.clear_pending(TIMER_IRQ);
+    redistributor.set_enable(TIMER_IRQ);
 
     kprintf!("Set timer\n");
 
@@ -113,7 +113,7 @@ fn interrupt_test(_: &str) -> u8 {
             timer_ctl,
             remaining
         );
-        let pending: u64 = gic.get_pending(TIMER_IRQ) as u64;
+        let pending: u64 = redistributor.get_pending(TIMER_IRQ) as u64;
         kprintf!(" pending: {:#x}\n", pending);
         if (pending != 0) {
             loop {
@@ -125,11 +125,11 @@ fn interrupt_test(_: &str) -> u8 {
 
         if (remaining > delta) {
             kprintf!("remaining > delta. Setting interrupt manually and hoping for the best\n");
-            gic.set_pending(TIMER_IRQ);
-            gic.set_redistributor_pending(TIMER_IRQ);
+            redistributor.set_pending(TIMER_IRQ);
+            distributor.set_pending(TIMER_IRQ);
             kprintf!("good luck, us :)\n");
-            let val: u32 = gic.get_pending(TIMER_IRQ) as u32;
-            let other_val: u32 = gic.get_redistributor_pending(TIMER_IRQ) as u32;
+            let val: u32 = distributor.get_pending(TIMER_IRQ) as u32;
+            let other_val: u32 = redistributor.get_pending(TIMER_IRQ) as u32;
             kprintf!("val: {:#x} other_val {:#x}\n", val, other_val);
 
             let new_cntp_ctl: u64;
