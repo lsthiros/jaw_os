@@ -9,6 +9,7 @@ pub struct GicRedist {
 }
 
 impl GicRedist {
+    const GICR_SGI_BASE_OFFSET: usize = 0x10000;
     pub fn new(gicr_base: usize) -> GicRedist {
         GicRedist { gicr_base }
     }
@@ -49,7 +50,7 @@ impl GicRedist {
     }
 
     pub fn set_interrupt_config(&self, interrupt_id: u32, config: u32) {
-        const GICR_ICFGR_OFFSET: usize = 0x0c;
+        const GICR_ICFGR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x0c;
         const GICR_ICFGR_FIELD_WIDTH: u32 = 2;
         write_register(
             self.gicr_base + GICR_ICFGR_OFFSET,
@@ -60,7 +61,7 @@ impl GicRedist {
     }
 
     pub fn get_redistributor_pending(&self, interrupt: u32) -> bool {
-        const GICR_ISPENDR_OFFSET: usize = 0x200;
+        const GICR_ISPENDR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x200;
         const GICR_ISPENDR_FIELD_SIZE: u32 = 1;
         read_register(
             self.gicr_base + GICR_ISPENDR_OFFSET,
@@ -71,7 +72,7 @@ impl GicRedist {
 
     pub fn set_enable(&self, interrupt: u32) {
         const GICR_ISENABLER_FIELD_SIZE: u32 = 1;
-        const GICR_ISENABLER_OFFSET: usize = 0x100;
+        const GICR_ISENABLER_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x100;
         write_register(
             self.gicr_base + GICR_ISENABLER_OFFSET,
             GICR_ISENABLER_FIELD_SIZE,
@@ -82,7 +83,7 @@ impl GicRedist {
 
     pub fn clear_enable(&self, interrupt: u32) {
         const GICR_ICENABLER_FIELD_SIZE: u32 = 1;
-        const GICR_ICENABLER_OFFSET: usize = 0x180;
+        const GICR_ICENABLER_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x180;
         write_register(
             self.gicr_base + GICR_ICENABLER_OFFSET,
             GICR_ICENABLER_FIELD_SIZE,
@@ -92,7 +93,7 @@ impl GicRedist {
     }
 
     pub fn set_priority(&self, interrupt: u32, priority: u8) {
-        const GICR_IPRIORITYR_OFFSET: usize = 0x400;
+        const GICR_IPRIORITYR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x400;
         const GICR_IPRIORITYR_FIELD_SIZE: u32 = 8;
 
         write_register(
@@ -104,7 +105,7 @@ impl GicRedist {
     }
 
     pub fn get_priority(&self, interrupt: u32) -> u8 {
-        const GICR_IPRIORITYR_OFFSET: usize = 0x400;
+        const GICR_IPRIORITYR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x400;
         const GICR_IPRIORITYR_FIELD_SIZE: u32 = 8;
         read_register(
             self.gicr_base + GICR_IPRIORITYR_OFFSET,
@@ -114,7 +115,7 @@ impl GicRedist {
     }
 
     pub fn set_pending(&self, interrupt: u32) {
-        const GICR_ISPENDR_OFFSET: usize = 0x200;
+        const GICR_ISPENDR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x200;
         const GICR_ISPENDR_FIELD_SIZE: u32 = 1;
         write_register(
             self.gicr_base + GICR_ISPENDR_OFFSET,
@@ -125,7 +126,7 @@ impl GicRedist {
     }
 
     pub fn set_cfg(&self, interrupt: u32, cfg: InterruptType) {
-        const GICR_ICFGR_OFFSET: usize = 0xC00;
+        const GICR_ICFGR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0xC00;
         const GICR_ICFGR_FIELD_SIZE: u32 = 2;
         write_register(
             self.gicr_base + GICR_ICFGR_OFFSET,
@@ -137,7 +138,7 @@ impl GicRedist {
 
     pub fn clear_pending(&self, interrupt: u32) {
         const GICR_ICPENDR_FIELD_SIZE: u32 = 1;
-        const GICR_ICPENDR_OFFSET: usize = 0x280;
+        const GICR_ICPENDR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x280;
         write_register(
             self.gicr_base + GICR_ICPENDR_OFFSET,
             GICR_ICPENDR_FIELD_SIZE,
@@ -148,7 +149,7 @@ impl GicRedist {
 
     pub fn get_pending(&self, interrupt: u32) -> bool {
         const GICD_ISPENDR_FIELD_SIZE: u32 = 1;
-        const GICD_ISPENDR_OFFSET: usize = 0x200;
+        const GICD_ISPENDR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x200;
         read_register(
             self.gicr_base + GICD_ISPENDR_OFFSET,
             GICD_ISPENDR_FIELD_SIZE,
@@ -158,7 +159,7 @@ impl GicRedist {
 
     pub fn set_group(&self, interrupt: u32, group: bool) {
         const GICD_IGROUPR_FIELD_SIZE: u32 = 1;
-        const GICD_IGROUPR_OFFSET: usize = 0x080;
+        const GICD_IGROUPR_OFFSET: usize = GicRedist::GICR_SGI_BASE_OFFSET + 0x080;
 
         write_register(
             self.gicr_base + GICD_IGROUPR_OFFSET,

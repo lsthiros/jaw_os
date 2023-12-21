@@ -58,7 +58,7 @@ fn interrupt_test(_: &str) -> u8 {
 
     redistributor.set_priority(TIMER_IRQ, 0);
     redistributor.set_group(TIMER_IRQ, true);
-    redistributor.set_cfg(TIMER_IRQ, InterruptType::LevelSensitive);
+    redistributor.set_cfg(TIMER_IRQ, InterruptType::EdgeTriggered);
     redistributor.clear_pending(TIMER_IRQ);
     redistributor.set_enable(TIMER_IRQ);
 
