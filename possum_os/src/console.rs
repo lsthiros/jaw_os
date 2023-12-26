@@ -62,6 +62,30 @@ fn interrupt_test(_: &str) -> u8 {
     redistributor.clear_pending(TIMER_IRQ);
     redistributor.set_enable(TIMER_IRQ);
 
+    // Unmask and enable interrupts
+    unsafe {
+        asm!(
+            "msr DAIFCLR, #2",
+        );
+    }
+
+    // Enable Group 1 interrupts for current security state
+    let group_enable: u64 = 0b1;
+    unsafe {
+        asm!(
+            "msr ICC_IGRPEN1_EL1, {0}",
+            in(reg) group_enable,
+        )
+    }
+
+    let el1_priority_mask: u64 = 0xff;
+    unsafe {
+        asm!(
+            "msr ICC_PMR_EL1, {0}",
+            in(reg) el1_priority_mask,
+        )
+    }
+
     kprintf!("Set timer\n");
 
     let freq_val: u64;
@@ -121,26 +145,6 @@ fn interrupt_test(_: &str) -> u8 {
                     asm!("wfi");
                 }
             }
-        }
-
-        if (remaining > delta) {
-            kprintf!("remaining > delta. Setting interrupt manually and hoping for the best\n");
-            redistributor.set_pending(TIMER_IRQ);
-            distributor.set_pending(TIMER_IRQ);
-            kprintf!("good luck, us :)\n");
-            let val: u32 = distributor.get_pending(TIMER_IRQ) as u32;
-            let other_val: u32 = redistributor.get_pending(TIMER_IRQ) as u32;
-            kprintf!("val: {:#x} other_val {:#x}\n", val, other_val);
-
-            let new_cntp_ctl: u64;
-            unsafe {
-                asm!(
-                    "mrs {0}, CNTP_CTL_EL0",
-                    out(reg) new_cntp_ctl,
-                );
-            }
-            kprintf!("new_cntp_ctl: {:#x}\n", new_cntp_ctl);
-            panic!("THE TIMER STILL DUN WORK");
         }
     }
     0

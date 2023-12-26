@@ -32,23 +32,27 @@ impl GicDistributor {
             ptr::read_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32)
         };
         kprintf!("ctlr_contents: {:#x}\n", ctlr_contents);
-        // Turn on Group 0 and Group 1 interrupts
-        ctlr_contents |= 1 << 0;
-        ctlr_contents |= 1 << 1;
 
         // Disable Security
-        ctlr_contents |= 1 << 6;
-
-        // OK so affinity routing is always enabled on QEMU it looks like.
-        // Affinity routing should be disabled by default. If it isn't panic
-        // if ctlr_contents & (1 << 4) != 0 {
-        //     panic!("Affinity routing is enabled. This is not supported");
-        // }
-        // Disable affinity routing
-        // ctlr_contents &= !(1 << 4);
-
+        const GICD_CTLR_DISABLE_SECURITY: u32 = 0b1 << 6;
+        ctlr_contents |= GICD_CTLR_DISABLE_SECURITY;
         unsafe {
-            ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents | 0b11);
+            ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents);
+        }
+
+        // Enable Group 0 and Group 1 interrupts
+        const GICD_CTLR_ENABLE_G1NS: u32 = 0b1 << 1;
+        const GICD_CTLR_ENABLE_G0: u32 = 0b1 << 0;
+        ctlr_contents |= GICD_CTLR_ENABLE_G1NS | GICD_CTLR_ENABLE_G0;
+        unsafe {
+            ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents);
+        }
+
+        // Enable non-security affinity-routed interrupts
+        const GICD_CTLR_ARE_NS_BIT: u32 = 0b1 << 5;
+        ctlr_contents |= GICD_CTLR_ARE_NS_BIT;
+        unsafe {
+            ptr::write_volatile((self.gicd_ctlr + Self::GICD_CTLR_OFFSET) as *mut u32, ctlr_contents);
         }
     }
 
