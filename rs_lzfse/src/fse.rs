@@ -117,46 +117,35 @@ impl FseOutStream64 {
     }
 }
 
-impl FseOutStream32 {
-    fn new() -> Self {
-        Self {
-            accum: 0,
-            accum_nbits: 0,
+// The previous is the initialization function of the input stream in C. What follows
+// is the initialization function in Rust. This function is called "new", and instead
+// of a double pointer and a pointer, it takes a mutable reference to a slice of u8s
+// and an index (called "buf_start") into that slice.
+
+fn new(buf: &mut [u8], buf_start: usize) -> Self {
+    let mut s = Self {
+        accum: 0,
+        accum_nbits: 0,
+    };
+
+    if n != 0 {
+        if buf_start < 8 {
+            panic!("out of range");
         }
+        buf_start -= 8;
+        s.accum = u64::from_le_bytes(buf[buf_start..buf_start + 8]);
+        s.accum_nbits = n + 64;
+    } else {
+        if buf_start < 7 {
+            panic!("out of range");
+        }
+        buf_start -= 7;
+        s.accum = u64::from_le_bytes(buf[buf_start..buf_start + 7]) & 0xffffffffffffff;
+        s.accum_nbits = n + 56;
     }
 
-    fn out_flush(&mut self, buf: &mut [u8]) {
-        let nbits = self.accum_nbits & -8; // number of bits written, multiple of 8
-
-        // Write 4 bytes of current accumulator
-        buf[..4].copy_from_slice(&self.accum.to_le_bytes());
-        buf.rotate_left((nbits >> 3) as usize); // bytes
-
-        // Update state
-        self.accum >>= nbits; // remove nbits
-        self.accum_nbits -= nbits;
-
-        assert!(self.accum_nbits >= 0 && self.accum_nbits <= 7);
-        assert!(self.accum_nbits == 32 || (self.accum >> self.accum_nbits) == 0);
+    if s.accum_nbits < 56 || s.accum_nbits >= 64 || s.accum >> s.accum_nbits != 0 {
+        panic!("the incoming input is wrong (encoder should have zeroed the upper bits)");
     }
-
-    fn out_finish(&mut self, buf: &mut [u8]) {
-        let nbits = (self.accum_nbits + 7) & -8; // number of bits written, multiple of 8
-
-        // Write 4 bytes of current accumulator
-        buf[..4].copy_from_slice(&self.accum.to_le_bytes());
-        buf.rotate_left((nbits >> 3) as usize); // bytes
-
-        // Update state
-        self.accum = 0; // remove nbits
-        self.accum_nbits -= nbits;
-    }
-
-    fn out_push(&mut self, n: FseBitCount, b: u32) {
-        self.accum |= b << self.accum_nbits;
-        self.accum_nbits += n;
-
-        assert!(self.accum_nbits >= 0 && self.accum_nbits <= 32);
-        assert!(self.accum_nbits == 32 || (self.accum >> self.accum_nbits) == 0);
-    }
+    s
 }
