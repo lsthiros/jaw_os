@@ -122,30 +122,41 @@ impl FseOutStream64 {
 // of a double pointer and a pointer, it takes a mutable reference to a slice of u8s
 // and an index (called "buf_start") into that slice.
 
-fn new(buf: &mut [u8], buf_start: usize) -> Self {
-    let mut s = Self {
-        accum: 0,
-        accum_nbits: 0,
-    };
+impl FseInStream64 {
+    fn new(buf: &mut [u8], buf_start: usize) -> Self {
+        let mut s = Self {
+            accum: 0,
+            accum_nbits: 0,
+        };
 
-    if n != 0 {
         if buf_start < 8 {
             panic!("out of range");
         }
         buf_start -= 8;
         s.accum = u64::from_le_bytes(buf[buf_start..buf_start + 8]);
-        s.accum_nbits = n + 64;
-    } else {
-        if buf_start < 7 {
-            panic!("out of range");
+        s.accum_nbits = 64;
+
+        if s.accum >> s.accum_nbits != 0 {
+            panic!("the incoming input is wrong (encoder should have zeroed the upper bits)");
         }
-        buf_start -= 7;
-        s.accum = u64::from_le_bytes(buf[buf_start..buf_start + 7]) & 0xffffffffffffff;
-        s.accum_nbits = n + 56;
+        s
     }
 
-    if s.accum_nbits < 56 || s.accum_nbits >= 64 || s.accum >> s.accum_nbits != 0 {
-        panic!("the incoming input is wrong (encoder should have zeroed the upper bits)");
+
+    fn flush(&mut self, buf: &mut &[u8], buf_start: *const u8) -> Result<(), ()> {
+        // Get number of bits to add to bring us into the desired range.
+        let nbits = (63 - self.accum_nbits) & -8;
+        // Convert bits to bytes and decrement buffer address, then load new data.
+        let buf_ptr = buf.as_ptr().wrapping_sub(nbits as usize >> 3);
+        if buf_ptr < buf_start {
+            return Err(()); // out of range
+        }
+        *buf = unsafe { std::slice::from_raw_parts(buf_ptr, buf.len()) };
+        let incoming = u64::from_le_bytes(buf[..8].try_into().unwrap());
+        // Update the state object and verify its validity (in DEBUG).
+        self.accum = (self.accum << nbits) | fse_mask_lsb64(incoming, nbits);
+        self.accum_nbits += nbits;
+        // DEBUG_CHECK_INPUT_STREAM_PARAMETERS
+        Ok(()) // OK
     }
-    s
 }
