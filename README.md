@@ -15,15 +15,19 @@ For the time being, I got it from [here](https://developer.arm.com/downloads/-/g
 And the qemu target is described [here](https://qemu.readthedocs.io/en/latest/system/arm/virt.html)
 
 ### Rust Target
+This project uses Rust Nightly, exclusively, fuck you Gerrik.
+
 Rust, specifically, will be told to use this target: `aarch64-unknown-none-softfloat`
 That means, I may have to run:
 ```bash
 rustup target add aarch64-unknown-none-softfloat
 ```
 
-xbuild is being used to manage the build environment, as such, the build command is
+I am using [this website](https://lowenware.com/blog/aarch64-bare-metal-program-in-rust/)
+as a guide. It says to use this command to build
+
 ```bash
-cargo xbuild --target=aarch64-unknown-none-softfloat.json
+cargo xbuild --target=aarch64-unknown-none-softfloat.json --release
 ```
 
 ### Running

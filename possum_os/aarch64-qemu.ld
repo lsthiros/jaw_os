@@ -8,6 +8,9 @@ SECTIONS
     .rodata : { *(.rodata) }
     .bss : { *(.bss) }
 
+    . = ALIGN(0x800);
+    .text.exceptions : { *(.text.exceptions) }
+    
     . = ALIGN(8);
     . = . + 0x4000;
     LD_STACK_PTR = .;

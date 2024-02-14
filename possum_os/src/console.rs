@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
+use core::arch::asm;
 use core::str;
 
+use crate::exception;
+use crate::gic::gic_dist::GicDistributor;
+use crate::gic::gic_redist::GicRedist;
+use crate::gic::common::InterruptType;
 use crate::ring_buffer::RingBuffer;
 use crate::simple_uart::SimpleUart;
 use crate::{kprintf, uart_printf};
 
 // Console struct that contains a SimpleUart and a RingBuffer
+const CONSOLE_RING_BUFFER_SIZE: usize = 1024;
 pub struct Console {
     uart: SimpleUart,
     buffer: RingBuffer<u8, 1024>,
@@ -35,8 +41,117 @@ fn device_tree(_: &str) -> u8 {
     0
 }
 
+fn interrupt_test(_: &str) -> u8 {
+    const TIMER_IRQ: u32 = 30;
+
+    exception::init_exception_table();
+    let current_el: exception::ExceptionLevel = exception::get_current_el();
+    kprintf!("Current exception level: {:?}\n", current_el);
+
+    let distributor: GicDistributor = GicDistributor::new(0x0800_0000 as usize);
+    let redistributor: GicRedist = GicRedist::new(0x080A_0000 as usize);
+    kprintf!("Init GIC\n");
+
+    distributor.init_gic();
+    redistributor.init();
+    // Set the timer interrupt to be level sensitive with set_cfg
+
+    redistributor.set_priority(TIMER_IRQ, 0);
+    redistributor.set_group(TIMER_IRQ, true);
+    redistributor.set_cfg(TIMER_IRQ, InterruptType::EdgeTriggered);
+    redistributor.clear_pending(TIMER_IRQ);
+    redistributor.set_enable(TIMER_IRQ);
+
+    // Unmask and enable interrupts
+    unsafe {
+        asm!(
+            "msr DAIFCLR, #2",
+        );
+    }
+
+    // Enable Group 1 interrupts for current security state
+    let group_enable: u64 = 0b1;
+    unsafe {
+        asm!(
+            "msr ICC_IGRPEN1_EL1, {0}",
+            in(reg) group_enable,
+        )
+    }
+
+    let el1_priority_mask: u64 = 0xff;
+    unsafe {
+        asm!(
+            "msr ICC_PMR_EL1, {0}",
+            in(reg) el1_priority_mask,
+        )
+    }
+
+    kprintf!("Set timer\n");
+
+    let freq_val: u64;
+    let ctl_val: u64 = 1;
+    let next: u64;
+    let delta: u64 = 100_000_000;
+    // Personal note here: remember to set the cmp value before starting the clock
+    // because otherwise, an interrupt will be issued immediately (at least in qemu)
+    unsafe {
+        asm!(
+            "mrs {0}, CNTFRQ_EL0",
+            "msr CNTP_TVAL_EL0, {1}",
+            "mrs {2}, CNTP_CVAL_EL0",
+            "msr CNTP_CTL_EL0, {3}",
+            out(reg) freq_val,
+            in(reg) delta,
+            out(reg) next,
+            in(reg) ctl_val,
+        );
+    }
+
+    // kprintf frequency and tick values as hex
+    kprintf!("freq_val: {:#x}\n next: {:#x}\n", freq_val, next);
+
+    loop {
+        let mut nop_cnt: u64 = 0;
+        while nop_cnt < 20000000 {
+            unsafe {
+                asm!("nop");
+            }
+            nop_cnt += 1;
+        }
+        let cntpct_val: u64;
+        let timer_ctl: u64;
+        let remaining: u64;
+        unsafe {
+            asm!(
+                "mrs {0}, CNTPCT_EL0",
+                "mrs {1}, CNTP_CTL_EL0",
+                "mrs {2}, CNTP_TVAL_EL0",
+                out(reg) cntpct_val,
+                out(reg) timer_ctl,
+                out(reg) remaining,
+            );
+        }
+        kprintf!(
+            "cntpct_val: {:#x} ctl: {:#x} remain:{:#x}",
+            cntpct_val,
+            timer_ctl,
+            remaining
+        );
+        let pending: u64 = redistributor.get_pending(TIMER_IRQ) as u64;
+        kprintf!(" pending: {:#x}\n", pending);
+        if (pending != 0) {
+            loop {
+                unsafe {
+                    asm!("wfi");
+                }
+            }
+        }
+    }
+    0
+}
+
 // Static array of ConsoleCommands
-static COMMANDS: [ConsoleCommand; 2] = [
+static COMMANDS: [ConsoleCommand; 3] = [
     ConsoleCommand {
         command: "echo",
         callback: echo,
@@ -44,6 +159,10 @@ static COMMANDS: [ConsoleCommand; 2] = [
     ConsoleCommand {
         command: "dt",
         callback: device_tree,
+    },
+    ConsoleCommand {
+        command: "int",
+        callback: interrupt_test,
     },
 ];
 

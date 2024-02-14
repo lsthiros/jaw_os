@@ -4,3 +4,4 @@ startup.o
 test.bin
 
 tools/
+qemu-build/
